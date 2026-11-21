@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: north-world-transport
+    runtime: node
+    buildCommand: npm --prefix server ci && npm --prefix server run prisma:generate
+    startCommand: npm --prefix server run prisma:migrate && npm --prefix server start
+    healthCheckPath: /api/health/live
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true

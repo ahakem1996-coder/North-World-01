@@ -1,0 +1,25 @@
+[Unit]
+Description=North World Transport Management
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=northworld
+Group=northworld
+WorkingDirectory=/opt/north-world/transfer-plan-web/server
+EnvironmentFile=/opt/north-world/transfer-plan-web/.env
+ExecStart=/usr/bin/node /opt/north-world/transfer-plan-web/server/src/index.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
