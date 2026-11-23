@@ -325,7 +325,7 @@ tbody tr:hover { background: #fbfcfe; }
 .archive-meta { color: #607387; font-size: 10px; line-height: 1.8; }
 .archive-actions { display: flex; gap: 6px; }
 
-.tracking-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 15px; }
+.tracking-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 15px; }
 .tracking-updated-value { margin-top: 9px; color: #40576d; font-size: 14px; font-weight: 600; }
 .tracking-tools { display: grid; grid-template-columns: minmax(0, 1fr) 220px; align-items: end; gap: 12px; padding: 14px; margin-bottom: 14px; }
 .tracking-tools .compact-search { width: 100%; min-height: 38px; }
@@ -340,6 +340,7 @@ tbody tr:hover { background: #fbfcfe; }
 .tracking-details small { margin-bottom: 4px; color: #91a0ad; font-size: 9px; }
 .tracking-details strong { color: #485d72; font-size: 10px; font-weight: 600; line-height: 1.6; }
 .tracking-timeline-wrap { padding-top: 13px; border-top: 1px solid #edf0f3; }
+.tracking-actions { flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid #edf0f3; }
 .tracking-timeline { display: grid; grid-template-columns: repeat(7, minmax(108px, 1fr)); gap: 5px; overflow-x: auto; padding: 4px 3px 8px; }
 .tracking-stage { min-width: 108px; position: relative; display: grid; justify-items: center; align-content: start; gap: 6px; color: #9aa6b2; text-align: center; }
 .tracking-stage:not(:last-child)::after { content: ""; height: 2px; position: absolute; top: 10px; left: -52%; width: 100%; background: #e7edf2; }

@@ -39,6 +39,14 @@ const TRANSLATIONS = Object.freeze({
   "الأسطول والسائقون": "Fleet & Drivers",
   "تتبع الرحلات": "Trip Tracking",
   "تتبع رحلات السائقين": "Driver Trip Tracking",
+  "رحلات ملغاة": "Cancelled Trips",
+  "الملغاة": "Cancelled",
+  "ملغاة": "Cancelled",
+  "إلغاء الرحلة": "Cancel Trip",
+  "إتمام الرحلة": "Complete Trip",
+  "لا يمكن إلغاء رحلة مكتملة أو مرتبطة بفاتورة.": "Completed or invoiced trips cannot be cancelled.",
+  "ألغيت الرحلة": "Trip cancelled",
+  "تم تحرير الشاحنة": "Truck released",
   "تكاليف الرحلات": "Trip Expenses",
   "مصروفات التشغيل": "Operating Expenses",
   "سجل موحد لمصروفات السائقين المسجلة على رحلاتهم.": "A unified record of driver expenses reported for their trips.",
@@ -1087,6 +1095,8 @@ const API_ERRORS = {
   trip_request_unavailable: "طلب الرحلة غير متاح لهذا الحساب.",
   trip_stage_unavailable: "لا يمكن تحديث مرحلة هذه الرحلة.",
   trip_already_returned: "تم تسجيل عودة الحاوية مسبقاً.",
+  trip_cancel_unavailable: "لا يمكن إلغاء رحلة مكتملة أو مرتبطة بفاتورة أو لم يتم قبولها.",
+  trip_cancelled: "الرحلة ملغاة ولا يمكن إتمامها.",
   last_admin_required: "لا يمكن تغيير نوع حساب آخر مدير في النظام.",
   integration_not_configured: "الربط الرسمي غير مهيأ حالياً. لم تُستخدم بيانات محاكاة.",
   origin_not_allowed: "تم رفض الطلب بسبب مصدر غير موثوق."
@@ -1346,6 +1356,7 @@ async function logout() {
 }
 
 function returnState(doc) {
+  if (doc.cancelledAt) return "cancelled";
   if (doc.returnedAt) return "returned";
   if (!doc.returnDueAt) return "active";
   const days = Math.ceil((new Date(`${doc.returnDueAt}T23:59:59`) - new Date()) / 86400000);
@@ -2363,24 +2374,27 @@ function renderArchive(query = "") {
       <div><h3>${escapeHtml(documentLabel(doc))}</h3><p>تاريخ الإصدار: ${doc.status === "DRAFT" ? "لم يصدر بعد" : formatDate(doc.issuedAt)}</p></div>
       <div><span class="status-pill ${status.className}">${status.text}</span><p>${escapeHtml(doc.declarationNumber)}</p></div>
       <div class="archive-meta">الحاوية: ${escapeHtml(doc.containerNumber)} · اللوحة: ${escapeHtml(truck?.plateNumber || "—")}<br>العميل: ${escapeHtml(doc.customerName)} · السائق: ${escapeHtml(driver?.name || "—")}${renderAttachmentLinks(doc.attachments, "مرفقات وثيقة النقل")}</div>
-      <div class="archive-actions"><button class="button button-secondary" data-action="pdf" data-id="${escapeHtml(doc.id)}">عرض / PDF</button>${doc.returnedAt ? "" : `<label class="eir-field">رقم إيصال EIR (اختياري)<input type="text" data-return-eir autocomplete="off"></label>`}<button class="button button-light" data-action="return" data-id="${escapeHtml(doc.id)}" ${doc.returnedAt ? "disabled" : ""}>تسجيل الإعادة</button></div>
+      <div class="archive-actions"><button class="button button-secondary" data-action="pdf" data-id="${escapeHtml(doc.id)}">عرض / PDF</button>${doc.returnedAt || doc.cancelledAt ? "" : `<label class="eir-field">رقم إيصال EIR (اختياري)<input type="text" data-return-eir autocomplete="off"></label>`}${doc.cancelledAt ? `<span class="status-pill status-maintenance">${translateText("الملغاة")}</span>` : `<button class="button button-light" data-action="return" data-id="${escapeHtml(doc.id)}" ${doc.returnedAt ? "disabled" : ""}>تسجيل الإعادة</button>`}</div>
     </article>`;
   }).join("");
 }
 
 function renderTripTracking() {
   const acceptedTrips = state.docs.filter(doc => Boolean(doc.acceptedAt));
-  const activeTrips = acceptedTrips.filter(doc => !doc.returnedAt);
-  const completedTrips = acceptedTrips.filter(doc => Boolean(doc.returnedAt));
+  const activeTrips = acceptedTrips.filter(doc => !doc.returnedAt && !doc.cancelledAt);
+  const completedTrips = acceptedTrips.filter(doc => Boolean(doc.returnedAt) && !doc.cancelledAt);
+  const cancelledTrips = acceptedTrips.filter(doc => Boolean(doc.cancelledAt));
   $("#tracking-active-count").textContent = activeTrips.length;
   $("#tracking-completed-count").textContent = completedTrips.length;
+  $("#tracking-cancelled-count").textContent = cancelledTrips.length;
   $("#tracking-last-updated").textContent = formatDateTime(trackingLastUpdatedAt);
 
   const statusFilter = $("#tracking-filter").value;
   const query = $("#tracking-query").value.trim().toLocaleLowerCase();
   const trips = acceptedTrips.filter(doc => {
-    if (statusFilter === "active" && doc.returnedAt) return false;
-    if (statusFilter === "completed" && !doc.returnedAt) return false;
+    if (statusFilter === "active" && (doc.returnedAt || doc.cancelledAt)) return false;
+    if (statusFilter === "completed" && (!doc.returnedAt || doc.cancelledAt)) return false;
+    if (statusFilter === "cancelled" && !doc.cancelledAt) return false;
     const driver = driverById(doc.driverId);
     const truck = truckForTrip(doc);
     const searchable = [
@@ -2390,8 +2404,8 @@ function renderTripTracking() {
     ];
     return !query || searchable.some(value => String(value || "").toLocaleLowerCase().includes(query));
   }).sort((a, b) => {
-    const aUpdatedAt = a.stageHistory?.[a.stageHistory.length - 1]?.completedAt || a.acceptedAt;
-    const bUpdatedAt = b.stageHistory?.[b.stageHistory.length - 1]?.completedAt || b.acceptedAt;
+    const aUpdatedAt = a.cancelledAt || a.stageHistory?.[a.stageHistory.length - 1]?.completedAt || a.acceptedAt;
+    const bUpdatedAt = b.cancelledAt || b.stageHistory?.[b.stageHistory.length - 1]?.completedAt || b.acceptedAt;
     return String(bUpdatedAt).localeCompare(String(aUpdatedAt));
   });
 
@@ -2409,11 +2423,13 @@ function renderTripTracking() {
       ? Math.max(0, Math.min(doc.tripStageIndex, TRIP_STAGES.length - 1))
       : 0;
     const completed = Boolean(doc.returnedAt);
+    const cancelled = Boolean(doc.cancelledAt);
+    const active = !completed && !cancelled;
     const currentStage = TRIP_STAGES[currentStageIndex];
-    const lastUpdate = doc.stageHistory?.[doc.stageHistory.length - 1]?.completedAt || doc.acceptedAt;
+    const lastUpdate = doc.cancelledAt || doc.stageHistory?.[doc.stageHistory.length - 1]?.completedAt || doc.acceptedAt;
     const timeline = TRIP_STAGES.map((stage, index) => {
       const done = completed || index < currentStageIndex;
-      const current = !completed && index === currentStageIndex;
+      const current = active && index === currentStageIndex;
       const enteredAt = index === 0
         ? doc.acceptedAt
         : stageHistory.get(TRIP_STAGES[index - 1].key);
@@ -2429,17 +2445,24 @@ function renderTripTracking() {
     return `<article class="tracking-card">
       <div class="tracking-card-heading">
         <div><h2>${escapeHtml(doc.documentNumber || doc.declarationNumber)}</h2><p>البيان: ${escapeHtml(doc.declarationNumber)} · الحاوية: ${escapeHtml(doc.containerNumber)}</p></div>
-        <span class="status-pill ${completed ? "status-issued" : "status-on-trip"}">${completed ? "مكتملة" : "قيد التنفيذ"}</span>
+        <span class="status-pill ${cancelled ? "status-maintenance" : completed ? "status-issued" : "status-on-trip"}">${cancelled ? translateText("الملغاة") : translateText(completed ? "مكتملة" : "قيد التنفيذ")}</span>
       </div>
       <div class="tracking-details">
         <div><small>السائق</small><strong>${escapeHtml(driver?.name || "—")}${driver?.phone ? ` · ${escapeHtml(driver.phone)}` : ""}</strong></div>
         <div><small>الشاحنة / رقم الأسطول</small><strong>${escapeHtml(truck?.plateNumber || "—")} · ${escapeHtml(truck?.fleetNumber || "—")}</strong></div>
         <div><small>المسار</small><strong>من: ${escapeHtml(doc.port)} · إلى: ${escapeHtml(doc.destination)}</strong></div>
         <div><small>قُبل الطلب في</small><strong>${formatDateTime(doc.acceptedAt)}</strong></div>
-        <div><small>المرحلة الحالية</small><strong>${completed ? "تم إعادة الفارغ" : currentStage.label}</strong></div>
+        <div><small>المرحلة الحالية</small><strong>${cancelled ? translateText("ألغيت الرحلة") : completed ? "تم إعادة الفارغ" : currentStage.label}</strong></div>
         <div><small>آخر تحديث</small><strong>${formatDateTime(lastUpdate)}</strong></div>
       </div>
       <div class="tracking-timeline-wrap"><div class="tracking-timeline">${timeline}</div></div>
+      ${active && currentAccount?.role === "ADMIN" ? `
+        <div class="driver-trip-actions tracking-actions">
+          <label class="eir-field">رقم إيصال التسليم EIR (اختياري)<input type="text" data-tracking-eir autocomplete="off"></label>
+          <button class="button button-primary" type="button" data-action="complete-tracked-trip" data-id="${escapeHtml(doc.id)}">${translateText("إتمام الرحلة")}</button>
+          <button class="button button-danger" type="button" data-action="cancel-tracked-trip" data-id="${escapeHtml(doc.tripId)}" ${doc.invoiceId || doc.billingStatus !== "UNBILLED" ? `disabled title="${translateText("لا يمكن إلغاء رحلة مكتملة أو مرتبطة بفاتورة.")}"` : ""}>${translateText("إلغاء الرحلة")}</button>
+        </div>
+      ` : ""}
     </article>`;
   }).join("");
 }
@@ -2476,6 +2499,7 @@ function filteredDocs() {
   const customer = $("#filter-customer").value.trim().toLowerCase();
   const status = $("#filter-return").value;
   return [...state.docs].filter(doc => {
+    if (doc.cancelledAt) return false;
     return (!from || doc.issuedAt >= from) &&
       (!to || doc.issuedAt <= to) &&
       (!port || doc.port === port) &&
@@ -2645,7 +2669,7 @@ async function handleAccountSubmit(event) {
 }
 
 function renderDriverExpenses(driver) {
-  const acceptedTrips = state.docs.filter(doc => doc.driverId === driver.id && doc.acceptedAt);
+  const acceptedTrips = state.docs.filter(doc => doc.driverId === driver.id && doc.acceptedAt && !doc.cancelledAt);
   const select = $("#driver-expense-trip");
   const selectedTripId = select.value;
   select.innerHTML = `<option value="">${translateText("اختر الرحلة")}</option>` + acceptedTrips.map(doc => `
@@ -2910,6 +2934,7 @@ async function issueDocument(event) {
 async function recordReturn(id, eirValue = "") {
   const doc = state.docs.find(item => item.id === id);
   if (!doc || doc.returnedAt) return;
+  if (doc.cancelledAt) return showToast(API_ERRORS.trip_cancelled, true);
   try {
     await apiRequest(`/api/trips/${encodeURIComponent(doc.tripId)}/return`, {
       method: "POST",
@@ -2917,6 +2942,29 @@ async function recordReturn(id, eirValue = "") {
     });
     await refreshServerState();
     showToast("تم تسجيل عودة الحاوية وتحديث حالة الشاحنة.");
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function cancelTrackedTrip(tripId) {
+  const trip = state.docs.find(item => item.tripId === tripId);
+  if (!trip || !trip.acceptedAt || trip.returnedAt || trip.cancelledAt) {
+    return showToast(API_ERRORS.trip_cancel_unavailable, true);
+  }
+  if (trip.invoiceId || trip.billingStatus !== "UNBILLED") {
+    return showToast(API_ERRORS.trip_cancel_unavailable, true);
+  }
+  const driverName = driverById(trip.driverId)?.name || "";
+  const confirmation = language === "en"
+    ? `Cancel the active trip for ${driverName}? The trip record and expenses will be retained.`
+    : `هل تريد إلغاء الرحلة للسائق ${driverName}؟ سيبقى سجل الرحلة والمصروفات محفوظاً.`;
+  if (!window.confirm(confirmation)) return;
+
+  try {
+    await apiRequest(`/api/trips/${encodeURIComponent(trip.tripId)}/cancel`, { method: "POST" });
+    await refreshServerState();
+    showToast(language === "en" ? "Trip cancelled and truck released." : "تم إلغاء الرحلة وتحرير الشاحنة.");
   } catch (error) {
     showToast(error.message, true);
   }
@@ -3279,7 +3327,8 @@ async function handleTripExpenseSubmit(event) {
   const trip = state.docs.find(doc =>
     doc.tripId === values.tripId &&
     doc.driverId === currentAccount?.driverId &&
-    doc.acceptedAt
+    doc.acceptedAt &&
+    !doc.cancelledAt
   );
   if (!trip) return showToast("لا يمكن إضافة تكلفة لهذه الرحلة.", true);
 
@@ -3715,7 +3764,7 @@ function renderInvoices(query = "") {
 
   const totalInvoiced = invoices.reduce((acc, inv) => acc + Number(inv.totalAmount || 0), 0);
   const paidCount = invoices.filter(inv => inv.status === "PAID").length;
-  const unbilledCount = state.docs.filter(d => d.billingStatus === "UNBILLED").length;
+  const unbilledCount = state.docs.filter(d => d.billingStatus === "UNBILLED" && !d.cancelledAt).length;
 
   if ($("#invoices-count")) $("#invoices-count").textContent = invoices.length;
   if ($("#stat-invoice-count")) $("#stat-invoice-count").textContent = invoices.length;
@@ -3760,7 +3809,7 @@ function populateInvoiceWizardCustomers() {
   if (!select) return;
   const customersWithUnbilled = new Set();
   state.docs.forEach(doc => {
-    if (doc.billingStatus === "UNBILLED" && doc.customerName) {
+    if (doc.billingStatus === "UNBILLED" && !doc.cancelledAt && doc.customerName) {
       customersWithUnbilled.add(doc.customerName);
     }
   });
@@ -3768,7 +3817,7 @@ function populateInvoiceWizardCustomers() {
   const selectedVal = select.value;
   select.innerHTML = `<option value="">${translateText("-- اختر الشركة لعرض رحلاتها --")}</option>` +
     Array.from(customersWithUnbilled).sort().map(name => {
-      const count = state.docs.filter(d => d.customerName === name && d.billingStatus === "UNBILLED").length;
+      const count = state.docs.filter(d => d.customerName === name && d.billingStatus === "UNBILLED" && !d.cancelledAt).length;
       return `<option value="${escapeHtml(name)}">${escapeHtml(name)} (${count} رحلات غير مفوترة)</option>`;
     }).join("");
 
@@ -3789,7 +3838,9 @@ function renderUnbilledTripsForCustomer(customerName) {
     return;
   }
 
-  const unbilledTrips = state.docs.filter(doc => doc.customerName === customerName && doc.billingStatus === "UNBILLED");
+  const unbilledTrips = state.docs.filter(doc =>
+    doc.customerName === customerName && doc.billingStatus === "UNBILLED" && !doc.cancelledAt
+  );
 
   if (unbilledTrips.length === 0) {
     tbody.innerHTML = `<tr><td colspan="7" class="empty-cell">${translateText("لا توجد رحلات غير مفوترة لهذه الشركة")}</td></tr>`;
@@ -4058,6 +4109,11 @@ function init() {
       const eir = action.closest(".archive-card")?.querySelector("[data-return-eir]")?.value || "";
       recordReturn(action.dataset.id, eir);
     }
+    if (action.dataset.action === "complete-tracked-trip") {
+      const eir = action.closest(".tracking-card")?.querySelector("[data-tracking-eir]")?.value || "";
+      recordReturn(action.dataset.id, eir);
+    }
+    if (action.dataset.action === "cancel-tracked-trip") cancelTrackedTrip(action.dataset.id);
     if (action.dataset.action === "driver-return") recordReturn(action.dataset.id);
     if (action.dataset.action === "accept-trip") acceptDriverTrip(action.dataset.id);
     if (action.dataset.action === "advance-trip") advanceDriverTrip(action.dataset.id);

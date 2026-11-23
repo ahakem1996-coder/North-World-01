@@ -503,11 +503,12 @@
           <div class="stats-grid tracking-stats">
             <article class="stat-card"><div class="stat-top"><span class="stat-icon blue">↗</span><span class="stat-caption">رحلات قيد التنفيذ</span></div><div class="stat-value" id="tracking-active-count">0</div><div class="stat-foot"><span class="stat-neutral">بعد قبول السائق</span></div></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon green">✓</span><span class="stat-caption">رحلات مكتملة</span></div><div class="stat-value" id="tracking-completed-count">0</div><div class="stat-foot"><span class="stat-neutral">تمت إعادة الفارغ</span></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon amber">×</span><span class="stat-caption">رحلات ملغاة</span></div><div class="stat-value" id="tracking-cancelled-count">0</div><div class="stat-foot"><span class="stat-neutral">تم تحرير الشاحنة</span></div></article>
             <article class="stat-card tracking-updated-card"><div class="stat-top"><span class="stat-icon violet">◷</span><span class="stat-caption">آخر تحديث للبيانات</span></div><div class="tracking-updated-value" id="tracking-last-updated">—</div><div class="stat-foot"><span class="stat-neutral">تحديث تلقائي كل 30 ثانية عند فتح الشاشة</span></div></article>
           </div>
           <section class="panel tracking-tools">
             <label class="compact-search"><span>⌕</span><input id="tracking-query" type="search" placeholder="ابحث عن سائق أو شاحنة أو حاوية"></label>
-            <label class="field">عرض الرحلات<select id="tracking-filter"><option value="active">قيد التنفيذ</option><option value="completed">مكتملة</option><option value="all">كل الرحلات المقبولة</option></select></label>
+            <label class="field">عرض الرحلات<select id="tracking-filter"><option value="active">قيد التنفيذ</option><option value="completed">مكتملة</option><option value="cancelled">الملغاة</option><option value="all">كل الرحلات المقبولة</option></select></label>
           </section>
           <div id="tracking-list" class="tracking-list"></div>
         </section>

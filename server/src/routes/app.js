@@ -30,7 +30,7 @@ const tripStages = [
   "EMPTY_RETURNED"
 ];
 const truckStatuses = ["AVAILABLE", "ASSIGNED", "ON_TRIP", "MAINTENANCE", "INACTIVE"];
-const ACTIVE_TRIP_FILTER = { emptyReturnedAt: null };
+const ACTIVE_TRIP_FILTER = { emptyReturnedAt: null, cancelledAt: null };
 const MAX_IMPORT_FILE_BYTES = 3 * 1024 * 1024;
 const MAX_IMPORT_ROWS = 500;
 const domesticTripSchema = z.object({
@@ -296,7 +296,7 @@ function mapTrip(trip) {
     tripId: trip.id,
     tripType: trip.tripType || "PORT",
     documentNumber: trip.transportDocument?.documentNumber || trip.cargoWaybillNumber || null,
-    status: trip.transportDocument?.status || "DRAFT",
+    status: trip.cancelledAt ? "CANCELLED" : trip.transportDocument?.status || "DRAFT",
     source: trip.transportDocument?.source || "INTERNAL_DRAFT",
     issuedAt: trip.transportDocument?.issuedAt?.toISOString().slice(0, 10) ||
       trip.operationAt.toISOString().slice(0, 10),
@@ -327,7 +327,8 @@ function mapTrip(trip) {
     driverId: trip.driverId,
     returnDueAt: trip.emptyReturnDueAt?.toISOString().slice(0, 10) || "",
     freeTimeEndsAt: trip.freeTimeEndsAt?.toISOString().slice(0, 10) || "",
-    requestStatus: trip.driverAcceptedAt ? "ACCEPTED" : "PENDING",
+    requestStatus: trip.cancelledAt ? "CANCELLED" : trip.driverAcceptedAt ? "ACCEPTED" : "PENDING",
+    cancelledAt: trip.cancelledAt?.toISOString() || "",
     acceptedAt: trip.driverAcceptedAt?.toISOString() || "",
     tripStageIndex: completed ? tripStages.length - 1 : trip.driverAcceptedAt ? Math.max(0, stageIndex) : -1,
     stageHistory: (trip.stageUpdates || []).map(update => ({
@@ -1914,7 +1915,8 @@ router.post("/invoices", requireAdmin, async (req, res) => {
       where: {
         id: { in: parsed.data.tripIds },
         customerId: customer.id,
-        billingStatus: "UNBILLED"
+        billingStatus: "UNBILLED",
+        cancelledAt: null
       }
     });
 
@@ -2049,7 +2051,8 @@ router.post("/trip-expenses", async (req, res) => {
       where: {
         id: parsed.data.tripId,
         driverId: req.user.driverId,
-        driverAcceptedAt: { not: null }
+        driverAcceptedAt: { not: null },
+        cancelledAt: null
       },
       select: { id: true }
     });
@@ -2160,7 +2163,7 @@ router.post("/trips/:id/accept", async (req, res) => {
   if (req.user.role !== "DRIVER") return res.status(403).json({ error: "driver_required" });
   const trip = await prisma.$transaction(async tx => {
     const current = await tx.trip.findUniqueOrThrow({ where: { id: req.params.id } });
-    if (current.driverId !== req.user.driverId || current.driverAcceptedAt || current.emptyReturnedAt) {
+    if (current.driverId !== req.user.driverId || current.driverAcceptedAt || current.emptyReturnedAt || current.cancelledAt) {
       throw Object.assign(new Error("trip_request_unavailable"), { statusCode: 409, publicCode: "trip_request_unavailable" });
     }
     const acceptedAt = new Date();
@@ -2185,7 +2188,7 @@ router.post("/trips/:id/advance", async (req, res) => {
     const current = await tx.trip.findUniqueOrThrow({ where: { id: req.params.id } });
     const index = current.currentStage ? tripStages.indexOf(current.currentStage) : -1;
     if (current.driverId !== req.user.driverId || !current.driverAcceptedAt ||
-        current.emptyReturnedAt || index < 0 || index >= tripStages.length - 1) {
+        current.emptyReturnedAt || current.cancelledAt || index < 0 || index >= tripStages.length - 1) {
       throw Object.assign(new Error("trip_stage_unavailable"), { statusCode: 409, publicCode: "trip_stage_unavailable" });
     }
 
@@ -2223,6 +2226,7 @@ router.post("/trips/:id/return", requireAdmin, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "invalid_trip_return" });
   const trip = await prisma.$transaction(async tx => {
     const current = await tx.trip.findUniqueOrThrow({ where: { id: req.params.id } });
+    if (current.cancelledAt) throw Object.assign(new Error("trip_cancelled"), { statusCode: 409, publicCode: "trip_cancelled" });
     if (current.emptyReturnedAt) throw Object.assign(new Error("trip_already_returned"), { statusCode: 409, publicCode: "trip_already_returned" });
 
     const completedAt = new Date();
@@ -2248,6 +2252,56 @@ router.post("/trips/:id/return", requireAdmin, async (req, res) => {
     await tx.truck.update({ where: { id: current.truckId }, data: { status: "AVAILABLE" } });
     await writeAudit(tx, req, "trip.returned", "Trip", updated.id);
     return updated;
+  }, { isolationLevel: "Serializable" });
+  res.json(mapTrip(trip));
+});
+
+router.post("/trips/:id/cancel", requireAdmin, async (req, res) => {
+  const trip = await prisma.$transaction(async tx => {
+    const current = await tx.trip.findUniqueOrThrow({
+      where: { id: req.params.id },
+      include: { truck: true }
+    });
+    if (!current.driverAcceptedAt ||
+        current.emptyReturnedAt ||
+        current.cancelledAt ||
+        current.currentStage === "EMPTY_RETURNED" ||
+        current.billingStatus !== "UNBILLED" ||
+        current.invoiceId ||
+        !current.truck) {
+      throw Object.assign(new Error("trip_cancel_unavailable"), {
+        statusCode: 409,
+        publicCode: "trip_cancel_unavailable"
+      });
+    }
+
+    const released = await tx.truck.updateMany({
+      where: {
+        id: current.truckId,
+        status: { in: ["ASSIGNED", "ON_TRIP"] },
+        assignedDriverId: current.driverId,
+        deletedAt: null
+      },
+      data: { status: "AVAILABLE", assignedDriverId: null }
+    });
+    if (released.count !== 1) {
+      throw Object.assign(new Error("trip_cancel_unavailable"), {
+        statusCode: 409,
+        publicCode: "trip_cancel_unavailable"
+      });
+    }
+
+    const cancelled = await tx.trip.update({
+      where: { id: current.id },
+      data: { cancelledAt: new Date() },
+      include: tripInclude
+    });
+    await writeAudit(tx, req, "trip.cancelled", "Trip", cancelled.id, {
+      previousStage: current.currentStage,
+      truckId: current.truckId,
+      driverId: current.driverId
+    });
+    return cancelled;
   }, { isolationLevel: "Serializable" });
   res.json(mapTrip(trip));
 });
@@ -2345,6 +2399,7 @@ router.get("/reports.xlsx", requireAdmin, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "invalid_report_filters" });
   const filters = parsed.data;
   const where = {
+    cancelledAt: null,
     ...(filters.from || filters.to ? {
       operationAt: {
         ...(filters.from ? { gte: new Date(`${filters.from}T00:00:00.000Z`) } : {}),

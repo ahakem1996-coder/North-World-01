@@ -1,0 +1,1 @@
+ALTER TABLE "Trip" ADD COLUMN "cancelledAt" TIMESTAMP(3);
