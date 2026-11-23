@@ -253,7 +253,7 @@
 
           <div id="domestic-form-wrap" class="panel inline-form-wrap hidden">
             <form id="domestic-trip-form" class="inline-form">
-              <div class="form-section-title full-field"><div><h3>بيانات الرحلة والنقل الداخلي</h3><p>أدخل بيانات العميل والمسار وتعيين السائق ليتم إرسال الطلب إليه فوراً</p></div></div>
+              <div class="form-section-title full-field"><div><h3 id="domestic-form-title">بيانات الرحلة والنقل الداخلي</h3><p>أدخل بيانات العميل والمسار وتعيين السائق ليتم إرسال الطلب إليه فوراً</p></div></div>
               <label class="field">الشركة / العميل<input id="domestic-customer" name="customerName" required placeholder="اسم الشركة" list="customer-list"></label>
               <label class="field">موقع التحميل (من)<input id="domestic-origin" name="origin" required placeholder="مثال: مستودع الرياض، المصنع، المدينة..."></label>
               <label class="field">وجهة التسليم (إلى)<input id="domestic-destination" name="destination" required placeholder="مثال: الخرج، الدمام، مستودع العميل..."></label>
@@ -288,6 +288,7 @@
                     <th>تاريخ الرحلة / النقل</th>
                     <th>السائق المكلف</th>
                     <th>الشاحنة</th>
+                    <th>الإجراءات</th>
                   </tr>
                 </thead>
                 <tbody id="domestic-rows"></tbody>

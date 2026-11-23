@@ -24,6 +24,15 @@ const TRANSLATIONS = Object.freeze({
   "إنشاء فاتورة جديدة": "Create New Invoice",
   "إصدار فاتورة جديدة": "Issue New Invoice",
   "رحلة نقل داخلي جديدة": "New Domestic Trip",
+  "بيانات الرحلة والنقل الداخلي": "Domestic Trip Details",
+  "حفظ وإرسال الطلب للسائق": "Save and Send Request to Driver",
+  "تعديل رحلة النقل الداخلي": "Edit Domestic Trip",
+  "حفظ تعديلات الرحلة": "Save Trip Changes",
+  "لا يمكن تعديل أو حذف رحلة بدأت أو أُضيفت لفاتورة أو لها مصروفات.": "Trips that have started, been invoiced, or have expenses cannot be edited or deleted.",
+  "هل تريد حذف رحلة النقل الداخلي للشركة ": "Delete the domestic trip for ",
+  "؟ سيُعاد تعيين الشاحنة كمتاحة.": "? The truck will be released.",
+  "تم تعديل بيانات رحلة النقل الداخلي.": "Domestic trip updated.",
+  "تم حذف رحلة النقل الداخلي وإتاحة الشاحنة.": "Domestic trip deleted and the truck released.",
   "سجل عمليات النقل الداخلي": "Domestic Operations Log",
   "جدول تعريفة الأسعار المسجلة": "Tariff Rates Table",
   "سجل الفواتير الصادرة": "Issued Invoices Log",
@@ -885,6 +894,7 @@ let currentAccount = null;
 let fasahSearchSequence = 0;
 let pendingFasahAppointmentId = null;
 let editingFasahAppointmentId = null;
+let editingDomesticTripId = null;
 let editingAccountId = null;
 let editingTruckId = null;
 let editingDriverId = null;
@@ -1025,6 +1035,8 @@ const API_ERRORS = {
   record_already_exists: "توجد بيانات مسجلة بهذه القيمة مسبقاً.",
   record_not_found: "السجل المطلوب غير موجود.",
   invalid_trip_expense: "تحقق من مبلغ ونوع المصروف والرحلة.",
+  invalid_domestic_trip_input: "تحقق من بيانات رحلة النقل الداخلي.",
+  domestic_trip_unavailable: "لا يمكن تعديل أو حذف الرحلة بعد بدء تنفيذها أو إصدار فاتورة أو تسجيل مصروفات.",
   expense_trip_unavailable: "لا يمكن إضافة تكلفة لهذه الرحلة.",
   driver_only: "هذه الخدمة متاحة لحسابات السائقين فقط.",
   invalid_excel_file: "تعذر قراءة ملف Excel. ارفع ملفاً صالحاً بصيغة .xlsx.",
@@ -3302,10 +3314,17 @@ function populateDomesticOptions() {
 
   const currentTruck = truckSelect.value;
   const currentDriver = driverSelect.value;
+  const editingTrip = editingDomesticTripId
+    ? state.docs.find(doc => doc.tripId === editingDomesticTripId)
+    : null;
 
   truckSelect.innerHTML = `<option value="">${translateText("اختر الشاحنة")}</option>` +
     state.trucks
-      .filter(truck => !truck.deletedAt && (truck.status === "AVAILABLE" || truck.id === currentTruck))
+      .filter(truck => !truck.deletedAt && (
+        truck.status === "AVAILABLE" ||
+        truck.id === currentTruck ||
+        truck.id === editingTrip?.truckId
+      ))
       .map(truck => {
         const assignedDriver = driverById(truck.driverId);
         const extra = assignedDriver ? ` (${assignedDriver.name})` : "";
@@ -3365,6 +3384,7 @@ function renderDomesticTrips(query = "") {
   tbody.innerHTML = filtered.map(doc => {
     const driver = driverById(doc.driverId);
     const driverName = driver ? driver.name : "—";
+    const canManage = domesticTripCanManage(doc);
     const truckName = doc.truckPlateNumber
       ? `${doc.truckPlateNumber}${doc.truckFleetNumber ? ` — ${doc.truckFleetNumber}` : ""}`
       : (doc.truckFleetNumber || "—");
@@ -3377,13 +3397,76 @@ function renderDomesticTrips(query = "") {
         <td>${formatDate(doc.issuedAt)}</td>
         <td>${escapeHtml(driverName)}</td>
         <td>${escapeHtml(truckName)}</td>
+        <td><div class="row-actions"><button class="edit-account-button" type="button" data-action="edit-domestic-trip" data-id="${escapeHtml(doc.tripId)}" ${canManage ? "" : `disabled title="${translateText("لا يمكن تعديل أو حذف رحلة بدأت أو أُضيفت لفاتورة أو لها مصروفات.")}"`}>${translateText("تعديل")}</button><button class="delete-button" type="button" data-action="delete-domestic-trip" data-id="${escapeHtml(doc.tripId)}" ${canManage ? "" : `disabled title="${translateText("لا يمكن تعديل أو حذف رحلة بدأت أو أُضيفت لفاتورة أو لها مصروفات.")}"`}>${translateText("حذف")}</button></div></td>
       </tr>
     `;
   }).join("");
 }
 
+function domesticTripCanManage(doc) {
+  return doc.tripType === "DOMESTIC" &&
+    doc.requestStatus === "PENDING" &&
+    !doc.acceptedAt &&
+    !doc.returnedAt &&
+    doc.billingStatus === "UNBILLED" &&
+    !doc.invoiceId &&
+    !doc.documentNumber &&
+    !(doc.stageHistory || []).length &&
+    !(state.tripExpenses || []).some(expense => expense.tripId === doc.tripId);
+}
+
+function beginDomesticTripEdit(id) {
+  const trip = state.docs.find(doc => doc.tripId === id && doc.tripType === "DOMESTIC");
+  if (!trip || !domesticTripCanManage(trip)) {
+    return showToast("لا يمكن تعديل أو حذف رحلة بدأت أو أُضيفت لفاتورة أو لها مصروفات.", true);
+  }
+
+  editingDomesticTripId = trip.tripId;
+  $("#domestic-form-wrap").classList.remove("hidden");
+  $("#domestic-form-title").textContent = translateText("تعديل رحلة النقل الداخلي");
+  $("#domestic-submit-button").textContent = translateText("حفظ تعديلات الرحلة");
+  $("#domestic-customer").value = trip.customerName || "";
+  $("#domestic-origin").value = trip.origin || "";
+  $("#domestic-destination").value = trip.destination || "";
+  $("#domestic-doc-date").value = trip.issuedAt || "";
+  populateDomesticOptions();
+  $("#domestic-driver").value = trip.driverId;
+  $("#domestic-truck").value = trip.truckId;
+  $("#domestic-form-wrap").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function cancelDomesticTripEdit() {
+  editingDomesticTripId = null;
+  $("#domestic-trip-form").reset();
+  $("#domestic-form-wrap").classList.add("hidden");
+  $("#domestic-form-title").textContent = translateText("بيانات الرحلة والنقل الداخلي");
+  $("#domestic-submit-button").textContent = translateText("حفظ وإرسال الطلب للسائق");
+  populateDomesticOptions();
+}
+
+async function deleteDomesticTrip(id) {
+  const trip = state.docs.find(doc => doc.tripId === id && doc.tripType === "DOMESTIC");
+  if (!trip || !domesticTripCanManage(trip)) {
+    return showToast("لا يمكن تعديل أو حذف رحلة بدأت أو أُضيفت لفاتورة أو لها مصروفات.", true);
+  }
+  if (!window.confirm(
+    `${translateText("هل تريد حذف رحلة النقل الداخلي للشركة ")}${trip.customerName}${translateText("؟ سيُعاد تعيين الشاحنة كمتاحة.")}`
+  )) return;
+
+  try {
+    await apiRequest(`/api/trips/domestic/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (editingDomesticTripId === id) cancelDomesticTripEdit();
+    await refreshServerState();
+    renderDomesticTrips($("#domestic-filter").value);
+    showToast("تم حذف رحلة النقل الداخلي وإتاحة الشاحنة.");
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
 async function handleDomesticTripSubmit(event) {
   event.preventDefault();
+  const isEditing = Boolean(editingDomesticTripId);
   const customerName = $("#domestic-customer")?.value.trim();
   const origin = $("#domestic-origin")?.value.trim();
   const destination = $("#domestic-destination")?.value.trim();
@@ -3404,8 +3487,10 @@ async function handleDomesticTripSubmit(event) {
   }
 
   try {
-    await apiRequest("/api/trips/domestic", {
-      method: "POST",
+    await apiRequest(isEditing
+      ? `/api/trips/domestic/${encodeURIComponent(editingDomesticTripId)}`
+      : "/api/trips/domestic", {
+      method: isEditing ? "PATCH" : "POST",
       body: {
         customerName,
         origin,
@@ -3416,10 +3501,12 @@ async function handleDomesticTripSubmit(event) {
       }
     });
 
-    $("#domestic-trip-form").reset();
-    $("#domestic-form-wrap").classList.add("hidden");
+    cancelDomesticTripEdit();
     await refreshServerState();
-    showToast("تم تسجيل رحلة النقل الداخلي وإرسال الطلب للسائق بنجاح!");
+    renderDomesticTrips($("#domestic-filter").value);
+    showToast(isEditing
+      ? "تم تعديل بيانات رحلة النقل الداخلي."
+      : "تم تسجيل رحلة النقل الداخلي وإرسال الطلب للسائق بنجاح!");
     switchView("domestic");
   } catch (error) {
     showToast(error.message, true);
@@ -3905,6 +3992,8 @@ function init() {
     if (action.dataset.action === "edit-truck") beginTruckEdit(action.dataset.id);
     if (action.dataset.action === "edit-driver") beginDriverEdit(action.dataset.id);
     if (action.dataset.action === "edit-account") beginAccountEdit(action.dataset.id);
+    if (action.dataset.action === "edit-domestic-trip") beginDomesticTripEdit(action.dataset.id);
+    if (action.dataset.action === "delete-domestic-trip") deleteDomesticTrip(action.dataset.id);
     if (action.dataset.action === "edit-tariff") editTariff(action.dataset.id);
     if (action.dataset.action === "delete-tariff") deleteTariff(action.dataset.id);
     if (action.dataset.action === "print-invoice") openPrintableInvoice(action.dataset.id);
@@ -4044,12 +4133,14 @@ function init() {
 
   // Domestic Trips listeners
   $("#toggle-domestic-form")?.addEventListener("click", () => {
+    if (editingDomesticTripId) {
+      cancelDomesticTripEdit();
+      return;
+    }
     $("#domestic-form-wrap")?.classList.toggle("hidden");
     populateDomesticOptions();
   });
-  $("#cancel-domestic-button")?.addEventListener("click", () => {
-    $("#domestic-form-wrap")?.classList.add("hidden");
-  });
+  $("#cancel-domestic-button")?.addEventListener("click", cancelDomesticTripEdit);
   $("#domestic-trip-form")?.addEventListener("submit", handleDomesticTripSubmit);
   $("#domestic-filter")?.addEventListener("input", event => renderDomesticTrips(event.target.value));
   $("#domestic-driver")?.addEventListener("change", () => syncDomesticTruckDriver("driver"));

@@ -33,6 +33,14 @@ const truckStatuses = ["AVAILABLE", "ASSIGNED", "ON_TRIP", "MAINTENANCE", "INACT
 const ACTIVE_TRIP_FILTER = { emptyReturnedAt: null };
 const MAX_IMPORT_FILE_BYTES = 3 * 1024 * 1024;
 const MAX_IMPORT_ROWS = 500;
+const domesticTripSchema = z.object({
+  customerName: z.string().trim().min(1).max(160),
+  origin: z.string().trim().min(1).max(240),
+  destination: z.string().trim().min(1).max(240),
+  truckId: z.string().min(1),
+  driverId: z.string().min(1),
+  manualDocumentDate: z.string().date().optional().or(z.literal(""))
+});
 const fasahAppointmentSchema = z.object({
   bookingReferenceNumber: z.string().trim().min(1).max(80),
   operatorTicketNumber: z.string().trim().max(80).optional().default(""),
@@ -1542,15 +1550,7 @@ router.post("/trips", requireAdmin, async (req, res) => {
 });
 
 router.post("/trips/domestic", requireAdmin, async (req, res) => {
-  const schema = z.object({
-    customerName: z.string().trim().min(1).max(160),
-    origin: z.string().trim().min(1).max(240),
-    destination: z.string().trim().min(1).max(240),
-    truckId: z.string().min(1),
-    driverId: z.string().min(1),
-    manualDocumentDate: z.string().date().optional().or(z.literal(""))
-  });
-  const parsed = schema.safeParse(req.body);
+  const parsed = domesticTripSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid_domestic_trip_input" });
 
   const trip = await prisma.$transaction(async tx => {
@@ -1608,6 +1608,168 @@ router.post("/trips/domestic", requireAdmin, async (req, res) => {
   }, { isolationLevel: "Serializable" });
 
   res.status(201).json(mapTrip(trip));
+});
+
+async function findEditableDomesticTrip(tx, tripId) {
+  const trip = await tx.trip.findUniqueOrThrow({
+    where: { id: tripId },
+    include: {
+      truck: true,
+      stageUpdates: { select: { id: true } },
+      expenses: { select: { id: true } },
+      transportDocument: { select: { id: true } }
+    }
+  });
+  if (trip.tripType !== "DOMESTIC" ||
+      trip.driverAcceptedAt ||
+      trip.currentStage ||
+      trip.emptyReturnedAt ||
+      trip.billingStatus !== "UNBILLED" ||
+      trip.invoiceId ||
+      trip.stageUpdates.length ||
+      trip.expenses.length ||
+      trip.transportDocument ||
+      !trip.truck ||
+      trip.truck.status !== "ASSIGNED" ||
+      trip.truck.assignedDriverId !== trip.driverId) {
+    throw Object.assign(new Error("domestic_trip_unavailable"), {
+      statusCode: 409,
+      publicCode: "domestic_trip_unavailable"
+    });
+  }
+  return trip;
+}
+
+router.patch("/trips/domestic/:id", requireAdmin, async (req, res) => {
+  const parsed = domesticTripSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_domestic_trip_input" });
+
+  const trip = await prisma.$transaction(async tx => {
+    const current = await findEditableDomesticTrip(tx, req.params.id);
+    const sameTruck = parsed.data.truckId === current.truckId;
+    const truck = await tx.truck.findFirst({
+      where: {
+        id: parsed.data.truckId,
+        deletedAt: null,
+        ...(sameTruck ? { status: "ASSIGNED" } : { status: "AVAILABLE" })
+      }
+    });
+    if (!truck) {
+      throw Object.assign(new Error("truck_unavailable"), { statusCode: 409, publicCode: "truck_unavailable" });
+    }
+
+    const driver = await tx.driver.findFirst({
+      where: {
+        id: parsed.data.driverId,
+        isActive: true,
+        deletedAt: null,
+        user: { is: { role: "DRIVER", isActive: true, deletedAt: null } }
+      }
+    });
+    if (!driver) {
+      throw Object.assign(new Error("driver_account_required"), { statusCode: 409, publicCode: "driver_account_required" });
+    }
+
+    const customer = await tx.customer.upsert({
+      where: { name: parsed.data.customerName },
+      create: { name: parsed.data.customerName },
+      update: {}
+    });
+
+    if (sameTruck) {
+      const assigned = await tx.truck.updateMany({
+        where: {
+          id: current.truckId,
+          status: "ASSIGNED",
+          assignedDriverId: current.driverId,
+          deletedAt: null
+        },
+        data: { assignedDriverId: driver.id }
+      });
+      if (assigned.count !== 1) {
+        throw Object.assign(new Error("truck_unavailable"), { statusCode: 409, publicCode: "truck_unavailable" });
+      }
+    } else {
+      const assigned = await tx.truck.updateMany({
+        where: { id: truck.id, status: "AVAILABLE", deletedAt: null },
+        data: { status: "ASSIGNED", assignedDriverId: driver.id }
+      });
+      if (assigned.count !== 1) {
+        throw Object.assign(new Error("truck_unavailable"), { statusCode: 409, publicCode: "truck_unavailable" });
+      }
+      const released = await tx.truck.updateMany({
+        where: {
+          id: current.truckId,
+          status: "ASSIGNED",
+          assignedDriverId: current.driverId,
+          deletedAt: null
+        },
+        data: { status: "AVAILABLE", assignedDriverId: null }
+      });
+      if (released.count !== 1) {
+        throw Object.assign(new Error("domestic_trip_unavailable"), {
+          statusCode: 409,
+          publicCode: "domestic_trip_unavailable"
+        });
+      }
+    }
+
+    const updated = await tx.trip.update({
+      where: { id: current.id },
+      data: {
+        customerId: customer.id,
+        originLocation: parsed.data.origin,
+        deliveryDestination: parsed.data.destination,
+        operationAt: parsed.data.manualDocumentDate
+          ? new Date(`${parsed.data.manualDocumentDate}T00:00:00.000Z`)
+          : new Date(),
+        truckId: truck.id,
+        truckFleetNumber: truck.fleetNumber,
+        truckPlateNumber: truck.plateNumber,
+        truckSerialNumber: truck.serialNumber,
+        truckModel: truck.model,
+        driverId: driver.id
+      },
+      include: tripInclude
+    });
+    await writeAudit(tx, req, "trip.domestic_updated", "Trip", updated.id, {
+      customerName: customer.name,
+      previousTruckId: current.truckId,
+      truckId: truck.id,
+      driverId: driver.id
+    });
+    return updated;
+  }, { isolationLevel: "Serializable" });
+
+  res.json(mapTrip(trip));
+});
+
+router.delete("/trips/domestic/:id", requireAdmin, async (req, res) => {
+  await prisma.$transaction(async tx => {
+    const trip = await findEditableDomesticTrip(tx, req.params.id);
+    const released = await tx.truck.updateMany({
+      where: {
+        id: trip.truckId,
+        status: "ASSIGNED",
+        assignedDriverId: trip.driverId,
+        deletedAt: null
+      },
+      data: { status: "AVAILABLE", assignedDriverId: null }
+    });
+    if (released.count !== 1) {
+      throw Object.assign(new Error("domestic_trip_unavailable"), {
+        statusCode: 409,
+        publicCode: "domestic_trip_unavailable"
+      });
+    }
+    await writeAudit(tx, req, "trip.domestic_deleted", "Trip", trip.id, {
+      customerId: trip.customerId,
+      truckId: trip.truckId
+    });
+    await tx.trip.delete({ where: { id: trip.id } });
+  }, { isolationLevel: "Serializable" });
+
+  res.json({ id: req.params.id });
 });
 
 router.get("/tariffs", requireAdmin, async (req, res) => {
