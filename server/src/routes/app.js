@@ -33,6 +33,37 @@ const truckStatuses = ["AVAILABLE", "ASSIGNED", "ON_TRIP", "MAINTENANCE", "INACT
 const ACTIVE_TRIP_FILTER = { emptyReturnedAt: null };
 const MAX_IMPORT_FILE_BYTES = 3 * 1024 * 1024;
 const MAX_IMPORT_ROWS = 500;
+const fasahAppointmentSchema = z.object({
+  bookingReferenceNumber: z.string().trim().min(1).max(80),
+  operatorTicketNumber: z.string().trim().max(80).optional().default(""),
+  zoneGateName: z.string().trim().max(160).optional().default(""),
+  portContractorId: z.string().trim().max(80).optional().default(""),
+  portContractorName: z.string().trim().max(160).optional().default(""),
+  portName: z.string().trim().max(160).optional().default(""),
+  appointmentDate: z.string().date().optional().or(z.literal("")),
+  appointmentTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).optional().or(z.literal("")),
+  vehiclePlateNumber: z.string().trim().max(64).optional().default(""),
+  vehiclePlateType: z.string().trim().max(120).optional().default(""),
+  vehicleColor: z.string().trim().max(64).optional().default(""),
+  vehicleRefId: z.string().trim().max(80).optional().default(""),
+  vehicleSerialId: z.string().trim().max(80).optional().default(""),
+  vehicleModel: z.string().trim().max(120).optional().default(""),
+  driverName: z.string().trim().max(160).optional().default(""),
+  driverMobileNumber: z.string().trim().max(32).optional().default(""),
+  driverLicenseNumber: z.string().trim().max(80).optional().default(""),
+  entryLocation: z.string().trim().max(160).optional().default(""),
+  entryBlNumber: z.string().trim().max(80).optional().default(""),
+  entryDeclarationNumber: z.string().trim().max(80).optional().default(""),
+  entryContainerNumber: z.string().trim().max(32).optional().default(""),
+  entryCargoType: z.string().trim().max(160).optional().default(""),
+  entrySerialNumber: z.string().trim().max(80).optional().default(""),
+  exitLocation: z.string().trim().max(160).optional().default(""),
+  exitBlNumber: z.string().trim().max(80).optional().default(""),
+  exitDeclarationNumber: z.string().trim().max(80).optional().default(""),
+  exitContainerNumber: z.string().trim().max(32).optional().default(""),
+  exitCargoType: z.string().trim().max(160).optional().default(""),
+  exitSerialNumber: z.string().trim().max(80).optional().default("")
+});
 const DRIVER_IMPORT_COLUMNS = [
   { key: "name", required: true, headers: ["اسم السائق", "name"] },
   { key: "nationalId", required: true, headers: ["رقم الهوية / الإقامة", "رقم الهوية", "national id", "nationalId"] },
@@ -529,39 +560,7 @@ router.post("/fasah/appointments", requireAdmin, async (req, res) => {
   if (attachments.length !== 1 || attachments[0].contentType !== "application/pdf") {
     return res.status(400).json({ error: "invalid_fasah_pdf" });
   }
-  const optionalText = max => z.string().trim().max(max).optional().default("");
-  const schema = z.object({
-    bookingReferenceNumber: z.string().trim().min(1).max(80),
-    operatorTicketNumber: optionalText(80),
-    zoneGateName: optionalText(160),
-    portContractorId: optionalText(80),
-    portContractorName: optionalText(160),
-    portName: optionalText(160),
-    appointmentDate: z.string().date().optional().or(z.literal("")),
-    appointmentTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).optional().or(z.literal("")),
-    vehiclePlateNumber: optionalText(64),
-    vehiclePlateType: optionalText(120),
-    vehicleColor: optionalText(64),
-    vehicleRefId: optionalText(80),
-    vehicleSerialId: optionalText(80),
-    vehicleModel: optionalText(120),
-    driverName: optionalText(160),
-    driverMobileNumber: optionalText(32),
-    driverLicenseNumber: optionalText(80),
-    entryLocation: optionalText(160),
-    entryBlNumber: optionalText(80),
-    entryDeclarationNumber: optionalText(80),
-    entryContainerNumber: optionalText(32),
-    entryCargoType: optionalText(160),
-    entrySerialNumber: optionalText(80),
-    exitLocation: optionalText(160),
-    exitBlNumber: optionalText(80),
-    exitDeclarationNumber: optionalText(80),
-    exitContainerNumber: optionalText(32),
-    exitCargoType: optionalText(160),
-    exitSerialNumber: optionalText(80)
-  });
-  const parsed = schema.safeParse(req.body);
+  const parsed = fasahAppointmentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid_fasah_appointment" });
   const extracted = await extractFasahAppointmentPdf(attachments[0].data);
   if (extracted.bookingReferenceNumber &&
@@ -598,6 +597,72 @@ router.post("/fasah/appointments", requireAdmin, async (req, res) => {
     throw error;
   }
   res.status(201).json(mapFasahAppointment(appointment));
+});
+
+router.patch("/fasah/appointments/:id", requireAdmin, async (req, res) => {
+  const parsed = fasahAppointmentSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_fasah_appointment" });
+  const attachments = req.body?.attachments === undefined
+    ? []
+    : parseManualAttachments(req.body.attachments);
+  if (attachments.length > 1 || attachments.some(attachment => attachment.contentType !== "application/pdf")) {
+    return res.status(400).json({ error: "invalid_fasah_pdf" });
+  }
+  if (attachments.length) {
+    const extracted = await extractFasahAppointmentPdf(attachments[0].data);
+    if (extracted.bookingReferenceNumber &&
+        extracted.bookingReferenceNumber !== parsed.data.bookingReferenceNumber) {
+      return res.status(409).json({ error: "fasah_pdf_reference_mismatch" });
+    }
+  }
+
+  try {
+    const appointment = await prisma.$transaction(async tx => {
+      const current = await tx.fasahAppointment.findUnique({ where: { id: req.params.id } });
+      if (!current) throw Object.assign(new Error("record_not_found"), { statusCode: 404, publicCode: "record_not_found" });
+      const updated = await tx.fasahAppointment.update({
+        where: { id: current.id },
+        data: {
+          ...parsed.data,
+          appointmentDate: parsed.data.appointmentDate
+            ? new Date(`${parsed.data.appointmentDate}T00:00:00.000Z`)
+            : null,
+          ...(attachments.length ? {
+            attachments: { deleteMany: {}, create: attachments }
+          } : {})
+        },
+        include: { attachments: { select: attachmentMetadataSelect } }
+      });
+      await writeAudit(tx, req, "fasah_appointment.updated", "FasahAppointment", updated.id, {
+        bookingReferenceNumber: updated.bookingReferenceNumber,
+        attachmentReplaced: attachments.length > 0
+      });
+      return updated;
+    });
+    res.json(mapFasahAppointment(appointment));
+  } catch (error) {
+    if (error?.code === "P2002") {
+      throw Object.assign(new Error("fasah_appointment_exists"), {
+        statusCode: 409,
+        publicCode: "fasah_appointment_exists"
+      });
+    }
+    throw error;
+  }
+});
+
+router.delete("/fasah/appointments/:id", requireAdmin, async (req, res) => {
+  await prisma.$transaction(async tx => {
+    const appointment = await tx.fasahAppointment.findUnique({ where: { id: req.params.id } });
+    if (!appointment) {
+      throw Object.assign(new Error("record_not_found"), { statusCode: 404, publicCode: "record_not_found" });
+    }
+    await writeAudit(tx, req, "fasah_appointment.deleted", "FasahAppointment", appointment.id, {
+      bookingReferenceNumber: appointment.bookingReferenceNumber
+    });
+    await tx.fasahAppointment.delete({ where: { id: appointment.id } });
+  });
+  res.json({ id: req.params.id });
 });
 
 router.get("/import-templates/:type", requireAdmin, async (req, res) => {

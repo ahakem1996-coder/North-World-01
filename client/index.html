@@ -179,6 +179,7 @@
                 <label class="field">الرقم التسلسلي<input name="exitSerialNumber" maxlength="80"></label>
               </div>
               <p class="search-hint">هذه بيانات مستخرجة من تذكرة الموعد وليست تأكيداً لحالة الفسح الجمركي.</p>
+              <p id="fasah-appointment-edit-hint" class="search-hint hidden">اترك ملف PDF فارغاً للاحتفاظ بالملف الحالي، أو ارفع ملفاً جديداً لاستبداله.</p>
               <div class="form-actions"><button id="fasah-appointment-save" class="button button-primary" type="submit">حفظ الموعد وملف PDF</button><button id="fasah-appointment-cancel" class="button button-light" type="button">إلغاء</button></div>
             </form>
           </section>
@@ -205,7 +206,7 @@
           <div id="fasah-results" class="result-list"></div>
           <section class="panel fasah-appointment-list">
             <div class="panel-heading"><div><h2>سجل مواعيد فسح المرفوعة</h2><p>تفاصيل الحجز والمركبة والسائق ومعلومات الدخول والخروج.</p></div><span id="fasah-appointment-count" class="record-count">0</span></div>
-            <div class="table-scroll"><table class="expense-table"><thead><tr><th>الرقم المرجعي</th><th>الميناء / الموعد</th><th>المركبة</th><th>السائق / الجوال</th><th>بيانات الخروج</th><th>البوليصة / البضاعة</th><th>الملف الأصلي</th></tr></thead><tbody id="fasah-appointment-rows"></tbody></table></div>
+            <div class="table-scroll"><table class="expense-table"><thead><tr><th>الرقم المرجعي</th><th>الميناء / الموعد</th><th>المركبة</th><th>السائق / الجوال</th><th>بيانات الخروج</th><th>البوليصة / البضاعة</th><th>الملف الأصلي</th><th>الإجراءات</th></tr></thead><tbody id="fasah-appointment-rows"></tbody></table></div>
           </section>
         </section>
 

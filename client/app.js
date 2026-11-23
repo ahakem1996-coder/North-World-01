@@ -97,6 +97,13 @@ const TRANSLATIONS = Object.freeze({
   "ملف PDF الأصلي": "Original PDF",
   "موعد فسح": "Fasah Appointment",
   "موعد محفوظ": "Appointment Saved",
+  "حفظ تعديلات الموعد": "Save Appointment Changes",
+  "اترك ملف PDF فارغاً للاحتفاظ بالملف الحالي، أو ارفع ملفاً جديداً لاستبداله.": "Leave the PDF empty to keep the current file, or upload a new one to replace it.",
+  "هل تريد حذف موعد الفسح ": "Delete Fasah appointment ",
+  "؟ لا يمكن التراجع عن هذا الإجراء.": ". This action cannot be undone.",
+  "تم تحديث موعد فسح.": "Fasah appointment updated.",
+  "تم حذف موعد فسح وملف PDF المرتبط به.": "Fasah appointment and its associated PDF deleted.",
+  "الإجراءات": "Actions",
   "تصدير الفسح إلى Excel": "Export clearances to Excel",
   "إضافة بيانات الفسح": "Add clearance data",
   "تعديل بيانات الفسح": "Edit clearance data",
@@ -877,6 +884,7 @@ let toastTimer;
 let currentAccount = null;
 let fasahSearchSequence = 0;
 let pendingFasahAppointmentId = null;
+let editingFasahAppointmentId = null;
 let editingAccountId = null;
 let editingTruckId = null;
 let editingDriverId = null;
@@ -1485,7 +1493,47 @@ function renderFasahAppointments() {
       <td>البيان: ${escapeHtml(appointment.exitDeclarationNumber || "—")}<br>الحاوية: ${escapeHtml(appointment.exitContainerNumber || "—")}</td>
       <td>${escapeHtml(appointment.exitBlNumber || "—")}<br>${escapeHtml(appointment.exitCargoType || "—")}</td>
       <td>${renderAttachmentLinks(appointment.attachments, "ملف PDF الأصلي") || "—"}</td>
-    </tr>`).join("") : `<tr><td colspan="7" class="empty-row">${translateText(query ? "لم يُعثر على مواعيد فسح مطابقة." : "لا توجد مواعيد فسح محفوظة.")}</td></tr>`;
+      <td><div class="row-actions"><button class="edit-account-button" type="button" data-action="edit-fasah-appointment" data-id="${escapeHtml(appointment.id)}" aria-label="${translateText("تعديل")} ${translateText("موعد فسح")} ${escapeHtml(appointment.bookingReferenceNumber)}">${translateText("تعديل")}</button><button class="delete-button" type="button" data-action="delete-fasah-appointment" data-id="${escapeHtml(appointment.id)}" aria-label="${translateText("حذف")} ${translateText("موعد فسح")} ${escapeHtml(appointment.bookingReferenceNumber)}">${translateText("حذف")}</button></div></td>
+    </tr>`).join("") : `<tr><td colspan="8" class="empty-row">${translateText(query ? "لم يُعثر على مواعيد فسح مطابقة." : "لا توجد مواعيد فسح محفوظة.")}</td></tr>`;
+}
+
+function beginFasahAppointmentEdit(id) {
+  const appointment = state.fasahAppointments.find(item => item.id === id);
+  if (!appointment) return showToast("تعذر العثور على موعد فسح محفوظ.", true);
+
+  editingFasahAppointmentId = appointment.id;
+  const form = $("#fasah-appointment-review-form");
+  for (const [name, value] of Object.entries(appointment)) {
+    const input = form.elements.namedItem(name);
+    if (input && input.type !== "file") input.value = value || "";
+  }
+  $("#fasah-appointment-file").value = "";
+  $("#fasah-appointment-file").disabled = false;
+  $("#fasah-appointment-file").required = false;
+  $("#fasah-pdf-extract-form").classList.add("hidden");
+  $("#fasah-appointment-edit-hint").classList.remove("hidden");
+  $("#fasah-appointment-save").textContent = translateText("حفظ تعديلات الموعد");
+  $("#fasah-pdf-message").classList.add("hidden");
+  form.classList.remove("hidden");
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function deleteFasahAppointment(id) {
+  const appointment = state.fasahAppointments.find(item => item.id === id);
+  if (!appointment) return showToast("تعذر العثور على موعد فسح محفوظ.", true);
+  if (!window.confirm(`${translateText("هل تريد حذف موعد الفسح ")}${appointment.bookingReferenceNumber}${translateText("؟ لا يمكن التراجع عن هذا الإجراء.")}`)) return;
+
+  try {
+    await apiRequest(`/api/fasah/appointments/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (editingFasahAppointmentId === id) cancelFasahAppointmentPreview();
+    if (latestFasahPdfExtraction?.appointmentId === id) latestFasahPdfExtraction = null;
+    await refreshServerState();
+    await renderFasahResults($("#fasah-query").value);
+    renderFasahAppointments();
+    showToast("تم حذف موعد فسح وملف PDF المرتبط به.");
+  } catch (error) {
+    showToast(error.message, true);
+  }
 }
 
 function appointmentDeclarationNumber(appointment) {
@@ -3071,31 +3119,37 @@ async function handleFasahPdfPreview(event) {
 async function handleFasahAppointmentSave(event) {
   event.preventDefault();
   const form = event.currentTarget;
+  const isEditing = Boolean(editingFasahAppointmentId);
   const saveButton = $("#fasah-appointment-save");
   saveButton.disabled = true;
   try {
     const attachments = await encodeSelectedAttachments($("#fasah-appointment-file"));
-    if (attachments.length !== 1 || attachments[0].type !== "application/pdf") {
+    if ((!isEditing && attachments.length !== 1) ||
+        attachments.length > 1 ||
+        attachments.some(attachment => attachment.type !== "application/pdf")) {
       throw new Error(translateText("ارفع ملف PDF لتذكرة الموعد."));
     }
     const values = Object.fromEntries(new FormData(form).entries());
-    const appointment = await apiRequest("/api/fasah/appointments", {
-      method: "POST",
-      body: { ...values, attachments }
+    const appointment = await apiRequest(isEditing
+      ? `/api/fasah/appointments/${encodeURIComponent(editingFasahAppointmentId)}`
+      : "/api/fasah/appointments", {
+      method: isEditing ? "PATCH" : "POST",
+      body: { ...values, ...(attachments.length ? { attachments } : {}) }
     });
     latestFasahPdfExtraction = {
       fields: appointment,
       extractedAt: Date.parse(appointment.createdAt) || Date.now(),
       appointmentId: appointment.id
     };
-    $("#fasah-pdf-extract-form").reset();
-    $("#fasah-appointment-file").disabled = false;
-    form.reset();
-    form.classList.add("hidden");
-    $("#fasah-pdf-message").classList.add("hidden");
+    cancelFasahAppointmentPreview();
     await refreshServerState();
     $("#fasah-query").value = appointment.bookingReferenceNumber;
     await renderFasahResults(appointment.bookingReferenceNumber);
+    renderFasahAppointments();
+    if (isEditing) {
+      showToast("تم تحديث موعد فسح.");
+      return;
+    }
     const containerNumber = appointmentContainerNumber(appointment);
     const hasExistingClearance = Boolean(containerNumber) && state.clearances.some(item =>
       normalizeContainerNumber(item.containerNumber) === normalizeContainerNumber(containerNumber)
@@ -3116,10 +3170,15 @@ function cancelFasahAppointmentPreview() {
   if (latestFasahPdfExtraction && !latestFasahPdfExtraction.appointmentId) {
     latestFasahPdfExtraction = null;
   }
+  editingFasahAppointmentId = null;
   $("#fasah-pdf-extract-form").reset();
   $("#fasah-appointment-review-form").reset();
   $("#fasah-appointment-review-form").classList.add("hidden");
   $("#fasah-appointment-file").disabled = false;
+  $("#fasah-appointment-file").required = true;
+  $("#fasah-pdf-extract-form").classList.remove("hidden");
+  $("#fasah-appointment-edit-hint").classList.add("hidden");
+  $("#fasah-appointment-save").textContent = translateText("حفظ الموعد وملف PDF");
   $("#fasah-pdf-message").classList.add("hidden");
 }
 
@@ -3827,6 +3886,8 @@ function init() {
       matchIssueDriverToSelectedClearance();
     }
     if (action.dataset.action === "edit-clearance") beginClearanceEdit(action.dataset.id);
+    if (action.dataset.action === "edit-fasah-appointment") beginFasahAppointmentEdit(action.dataset.id);
+    if (action.dataset.action === "delete-fasah-appointment") deleteFasahAppointment(action.dataset.id);
     if (action.dataset.action === "use-fasah-appointment") prepareTripFromFasahAppointment(action.dataset.id);
     if (action.dataset.action === "return") {
       const eir = action.closest(".archive-card")?.querySelector("[data-return-eir]")?.value || "";
