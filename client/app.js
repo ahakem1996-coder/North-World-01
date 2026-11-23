@@ -2782,7 +2782,6 @@ async function issueDocument(event) {
         destination,
         returnDueAt: $("#issue-return-date").value || "",
         clientRate: $("#issue-client-rate")?.value.trim() || "",
-        driverFee: $("#issue-driver-fee")?.value.trim() || "",
         manualDocumentNumber,
         manualDocumentDate,
         attachments
@@ -3234,7 +3233,6 @@ function autoLookupIssueTariff() {
   const tariff = findMatchingTariff(customer, origin, destination);
   if (tariff) {
     if ($("#issue-client-rate")) $("#issue-client-rate").value = tariff.price;
-    if ($("#issue-driver-fee") && tariff.driverCost) $("#issue-driver-fee").value = tariff.driverCost;
   }
 }
 
@@ -3380,7 +3378,6 @@ function renderTariffs(query = "") {
       (item.customerName || "").toLowerCase().includes(q) ||
       (item.origin || "").toLowerCase().includes(q) ||
       (item.destination || "").toLowerCase().includes(q) ||
-      (item.cargoType || "").toLowerCase().includes(q) ||
       (item.notes || "").toLowerCase().includes(q)
     );
   });
@@ -3393,9 +3390,7 @@ function renderTariffs(query = "") {
       <td><strong>${escapeHtml(item.customerName)}</strong></td>
       <td>${escapeHtml(item.origin)}</td>
       <td>${escapeHtml(item.destination)}</td>
-      <td>${escapeHtml(item.cargoType || "—")}</td>
       <td><strong style="color: #059669;">${Number(item.price).toLocaleString("en-US", { minimumFractionDigits: 2 })} ر.س</strong></td>
-      <td>${item.driverCost ? `${Number(item.driverCost).toLocaleString("en-US", { minimumFractionDigits: 2 })} ر.س` : "—"}</td>
       <td><small>${escapeHtml(item.notes || "—")}</small></td>
       <td>
         <button class="button button-light button-small" data-action="edit-tariff" data-id="${escapeHtml(item.id)}">${translateText("تعديل")}</button>
@@ -3410,9 +3405,7 @@ async function handleTariffSubmit(event) {
   const customerName = $("#tariff-customer")?.value.trim();
   const origin = $("#tariff-origin")?.value.trim();
   const destination = $("#tariff-destination")?.value.trim();
-  const cargoType = $("#tariff-cargo-type")?.value.trim() || "";
   const price = $("#tariff-price")?.value.trim();
-  const driverCost = $("#tariff-driver-cost")?.value.trim() || "";
   const notes = $("#tariff-notes")?.value.trim() || "";
 
   if (!customerName || !origin || !destination || !price) {
@@ -3423,13 +3416,13 @@ async function handleTariffSubmit(event) {
     if (editingTariffId) {
       await apiRequest(`/api/tariffs/${encodeURIComponent(editingTariffId)}`, {
         method: "PUT",
-        body: { origin, destination, cargoType, price, driverCost, notes }
+        body: { origin, destination, price, notes }
       });
       showToast("تم تحديث سعر المسار.");
     } else {
       await apiRequest("/api/tariffs", {
         method: "POST",
-        body: { customerName, origin, destination, cargoType, price, driverCost, notes }
+        body: { customerName, origin, destination, price, notes }
       });
       showToast("تمت إضافة سعر المسار للشركة.");
     }
@@ -3451,9 +3444,7 @@ function editTariff(id) {
   }
   if ($("#tariff-origin")) $("#tariff-origin").value = tariff.origin;
   if ($("#tariff-destination")) $("#tariff-destination").value = tariff.destination;
-  if ($("#tariff-cargo-type")) $("#tariff-cargo-type").value = tariff.cargoType || "";
   if ($("#tariff-price")) $("#tariff-price").value = tariff.price;
-  if ($("#tariff-driver-cost")) $("#tariff-driver-cost").value = tariff.driverCost || "";
   if ($("#tariff-notes")) $("#tariff-notes").value = tariff.notes || "";
   if ($("#tariff-submit-button")) $("#tariff-submit-button").textContent = translateText("حفظ التعديلات");
   $("#tariff-form-wrap")?.classList.remove("hidden");

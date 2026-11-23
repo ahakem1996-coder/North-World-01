@@ -227,7 +227,6 @@
                 <label class="field">وجهة التسليم<input id="issue-destination" required placeholder="المدينة أو المستودع"></label>
                 <label class="field">موعد إعادة الحاوية الفارغة<input id="issue-return-date" type="date"></label>
                 <label class="field">سعر النقل للشركة (ريال)<input id="issue-client-rate" type="number" step="0.01" min="0" placeholder="0.00"></label>
-                <label class="field">أجر / تكلفة السائق (ريال)<input id="issue-driver-fee" type="number" step="0.01" min="0" placeholder="0.00"></label>
               </div>
               <div class="form-section-title section-spaced"><span class="step-number">٣</span><div><h2>مرجع وثيقة النقل</h2><p>اختياري — يُستخرج الرقم والتاريخ تلقائياً من PDF المرفق ويمكن تعديله</p></div></div>
               <div class="form-grid">
@@ -317,9 +316,7 @@
               <label class="field">الشركة / العميل<input id="tariff-customer" name="customerName" required placeholder="اسم الشركة" list="customer-list"></label>
               <label class="field">موقع التحميل (من)<input id="tariff-origin" name="origin" required placeholder="الميناء أو المدينة"></label>
               <label class="field">موقع التسليم (إلى)<input id="tariff-destination" name="destination" required placeholder="المدينة أو المستودع"></label>
-              <label class="field">نوع الشحنة / المقاس<input id="tariff-cargo-type" name="cargoType" placeholder="مثال: 40 قدم، 20 قدم، عامة..."></label>
               <label class="field">سعر النقل للشركة (ريال)<input id="tariff-price" name="price" type="number" step="0.01" min="0" required placeholder="0.00"></label>
-              <label class="field">أجر / تكلفة السائق المقدرة<input id="tariff-driver-cost" name="driverCost" type="number" step="0.01" min="0" placeholder="0.00"></label>
               <label class="field full-field">ملاحظات المسار<input id="tariff-notes" name="notes" placeholder="شروط النقل أو تفاصيل إضافية"></label>
               <div class="inline-form-actions full-field">
                 <button id="tariff-submit-button" class="button button-primary" type="submit">حفظ السعر</button>
@@ -346,9 +343,7 @@
                     <th>الشركة</th>
                     <th>من (التحميل)</th>
                     <th>إلى (التسليم)</th>
-                    <th>نوع الشحنة</th>
                     <th>سعر الشركة (ريال)</th>
-                    <th>أجر السائق (ريال)</th>
                     <th>ملاحظات</th>
                     <th>إجراءات</th>
                   </tr>
