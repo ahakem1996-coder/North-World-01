@@ -1394,7 +1394,6 @@ router.post("/trips", requireAdmin, async (req, res) => {
     destination: z.string().trim().min(1).max(240),
     returnDueAt: z.string().date().optional().or(z.literal("")),
     clientRate: z.string().trim().regex(/^\d{1,10}(?:\.\d{1,2})?$/).optional().or(z.literal("")),
-    driverFee: z.string().trim().regex(/^\d{1,10}(?:\.\d{1,2})?$/).optional().or(z.literal("")),
     ...manualDocumentReferenceFields
   }).refine(hasCompleteManualDocumentReference, {
     path: ["manualDocumentDate"],
@@ -1436,7 +1435,6 @@ router.post("/trips", requireAdmin, async (req, res) => {
         originLocation: clearance.port.name,
         deliveryDestination: parsed.data.destination,
         clientRate: parsed.data.clientRate ? Number(parsed.data.clientRate) : null,
-        driverFee: parsed.data.driverFee ? Number(parsed.data.driverFee) : null,
         billingStatus: "UNBILLED",
         emptyReturnDueAt: parsed.data.returnDueAt ? new Date(`${parsed.data.returnDueAt}T00:00:00.000Z`) : null,
         truckId: truck.id,
