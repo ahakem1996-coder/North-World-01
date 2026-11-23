@@ -518,7 +518,17 @@
             <article class="stat-card"><div class="stat-top"><span class="stat-icon green">﷼</span><span class="stat-caption">إجمالي التكاليف المسجلة</span></div><div class="stat-value" id="expense-total">٠</div><div class="stat-foot"><span class="stat-neutral">ريال سعودي</span></div></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon blue">▤</span><span class="stat-caption">عدد المصروفات</span></div><div class="stat-value" id="expense-count">٠</div><div class="stat-foot"><span class="stat-neutral">لكل السائقين</span></div></article>
           </div>
-          <section class="panel expense-list-panel"><div class="panel-heading"><div><h2>سجل مصروفات السائقين</h2><p>تُربط كل تكلفة بالرحلة والشاحنة التي أُضيفت عليها.</p></div></div><div class="table-scroll"><table class="expense-table"><thead><tr><th>رقم السيارة</th><th>اسم السائق</th><th>رقم الهوية / الإقامة</th><th>الرحلة / الحاوية</th><th>التكلفة</th><th>نوع التكلفة</th><th>الملاحظات</th><th>المستندات</th><th>تاريخ التسجيل</th></tr></thead><tbody id="expense-rows"></tbody></table></div></section>
+          <div id="expense-edit-wrap" class="panel inline-form-wrap hidden">
+            <form id="expense-edit-form" class="inline-form">
+              <div class="form-section-title full-field"><div><h3>تعديل تكلفة الرحلة</h3></div></div>
+              <label class="field">قيمة المبلغ (ريال)<input id="expense-edit-amount" name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" required></label>
+              <label class="field">نوع التكلفة<select id="expense-edit-type" name="type" required><option value="FUEL">بنزين</option><option value="MAINTENANCE">صيانة</option></select></label>
+              <label class="field full-field">الملاحظات<textarea id="expense-edit-notes" name="notes" rows="3" maxlength="500"></textarea></label>
+              <label class="field full-field">مرفقات جديدة (اختياري)<input id="expense-edit-attachments" class="file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple><small class="file-hint">اترك الحقل فارغاً للاحتفاظ بالمرفقات الحالية، أو اختر ملفات لاستبدالها.</small></label>
+              <div class="inline-form-actions full-field"><button id="expense-edit-submit" class="button button-primary" type="submit">حفظ التعديلات</button><button id="expense-edit-cancel" class="button button-light" type="button">إلغاء</button></div>
+            </form>
+          </div>
+          <section class="panel expense-list-panel"><div class="panel-heading"><div><h2>سجل مصروفات السائقين</h2><p>تُربط كل تكلفة بالرحلة والشاحنة التي أُضيفت عليها.</p></div></div><div class="table-scroll"><table class="expense-table"><thead><tr><th>رقم السيارة</th><th>اسم السائق</th><th>رقم الهوية / الإقامة</th><th>الرحلة / الحاوية</th><th>التكلفة</th><th>نوع التكلفة</th><th>الملاحظات</th><th>المستندات</th><th>تاريخ التسجيل</th><th>الإجراءات</th></tr></thead><tbody id="expense-rows"></tbody></table></div></section>
         </section>
 
         <section class="view" id="view-archive">

@@ -45,6 +45,12 @@ const TRANSLATIONS = Object.freeze({
   "إجمالي التكاليف المسجلة": "Total Recorded Expenses",
   "ريال سعودي": "Saudi Riyal",
   "عدد المصروفات": "Expense Count",
+  "تعديل تكلفة الرحلة": "Edit Trip Expense",
+  "مرفقات جديدة (اختياري)": "New Attachments (Optional)",
+  "اترك الحقل فارغاً للاحتفاظ بالمرفقات الحالية، أو اختر ملفات لاستبدالها.": "Leave empty to keep the current attachments, or choose files to replace them.",
+  "هل تريد حذف تكلفة الرحلة للسائق ": "Delete this trip expense for driver ",
+  "تم تحديث تكلفة الرحلة.": "Trip expense updated.",
+  "تم حذف تكلفة الرحلة ومرفقاتها.": "Trip expense and its attachments deleted.",
   "لكل السائقين": "All Drivers",
   "سجل مصروفات السائقين": "Driver Expense Records",
   "تُربط كل تكلفة بالرحلة والشاحنة التي أُضيفت عليها.": "Each expense is linked to its trip and truck.",
@@ -895,6 +901,7 @@ let fasahSearchSequence = 0;
 let pendingFasahAppointmentId = null;
 let editingFasahAppointmentId = null;
 let editingDomesticTripId = null;
+let editingTripExpenseId = null;
 let editingAccountId = null;
 let editingTruckId = null;
 let editingDriverId = null;
@@ -2207,6 +2214,10 @@ function clearSelection(type) {
 
 function renderTripExpenses() {
   const expenses = state.tripExpenses || [];
+  const editLabel = language === "en" ? "Edit" : "تعديل";
+  const deleteLabel = language === "en" ? "Delete" : "حذف";
+  const expenseLabel = language === "en" ? "expense for" : "تكلفة السائق";
+  const canManageExpenses = currentAccount?.role === "ADMIN";
   const totalCents = expenses.reduce((sum, expense) => {
     const amount = Number(expense.amount);
     return sum + (Number.isFinite(amount) ? Math.round(amount * 100) : 0);
@@ -2224,7 +2235,44 @@ function renderTripExpenses() {
       <td>${escapeHtml(expense.notes || "—")}</td>
       <td>${renderAttachmentLinks(expense.attachments, "مرفقات التكلفة") || "—"}</td>
       <td>${formatDateTime(expense.createdAt)}</td>
-    </tr>`).join("") : `<tr><td colspan="9" class="empty-row">${translateText("لا توجد تكاليف مسجلة.")}</td></tr>`;
+      <td>${canManageExpenses ? `<div class="row-actions"><button class="edit-account-button" type="button" data-action="edit-trip-expense" data-id="${escapeHtml(expense.id)}" aria-label="${editLabel} ${expenseLabel} ${escapeHtml(expense.driverName)}">${editLabel}</button><button class="delete-button" type="button" data-action="delete-trip-expense" data-id="${escapeHtml(expense.id)}" aria-label="${deleteLabel} ${expenseLabel} ${escapeHtml(expense.driverName)}">${deleteLabel}</button></div>` : "—"}</td>
+    </tr>`).join("") : `<tr><td colspan="10" class="empty-row">${translateText("لا توجد تكاليف مسجلة.")}</td></tr>`;
+}
+
+function beginTripExpenseEdit(id) {
+  const expense = (state.tripExpenses || []).find(item => item.id === id);
+  if (!expense) return showToast("السجل المطلوب غير موجود.", true);
+
+  editingTripExpenseId = expense.id;
+  $("#expense-edit-amount").value = expense.amount;
+  $("#expense-edit-type").value = expense.type;
+  $("#expense-edit-notes").value = expense.notes || "";
+  $("#expense-edit-attachments").value = "";
+  $("#expense-edit-wrap").classList.remove("hidden");
+  $("#expense-edit-wrap").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function cancelTripExpenseEdit() {
+  editingTripExpenseId = null;
+  $("#expense-edit-form").reset();
+  $("#expense-edit-wrap").classList.add("hidden");
+}
+
+async function deleteTripExpense(id) {
+  const expense = (state.tripExpenses || []).find(item => item.id === id);
+  if (!expense) return showToast("السجل المطلوب غير موجود.", true);
+  if (!window.confirm(
+    `${translateText("هل تريد حذف تكلفة الرحلة للسائق ")}${expense.driverName}${translateText("؟ لا يمكن التراجع عن هذا الإجراء.")}`
+  )) return;
+
+  try {
+    await apiRequest(`/api/trip-expenses/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (editingTripExpenseId === id) cancelTripExpenseEdit();
+    await refreshServerState();
+    showToast("تم حذف تكلفة الرحلة ومرفقاتها.");
+  } catch (error) {
+    showToast(error.message, true);
+  }
 }
 
 function readFileAsBase64(file) {
@@ -3255,6 +3303,36 @@ async function handleTripExpenseSubmit(event) {
   }
 }
 
+async function handleTripExpenseEditSubmit(event) {
+  event.preventDefault();
+  const expense = (state.tripExpenses || []).find(item => item.id === editingTripExpenseId);
+  if (!expense) return showToast("السجل المطلوب غير موجود.", true);
+
+  const form = event.currentTarget;
+  const submitButton = $("#expense-edit-submit");
+  submitButton.disabled = true;
+  try {
+    const values = Object.fromEntries(new FormData(form).entries());
+    const attachments = await encodeSelectedAttachments($("#expense-edit-attachments"));
+    await apiRequest(`/api/trip-expenses/${encodeURIComponent(expense.id)}`, {
+      method: "PATCH",
+      body: {
+        amount: String(values.amount).trim(),
+        type: values.type,
+        notes: String(values.notes || "").trim(),
+        ...(attachments.length ? { attachments } : {})
+      }
+    });
+    cancelTripExpenseEdit();
+    await refreshServerState();
+    showToast("تم تحديث تكلفة الرحلة.");
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
 function clearReportFilters() {
   $("#filter-from").value = "";
   $("#filter-to").value = "";
@@ -3992,6 +4070,8 @@ function init() {
     if (action.dataset.action === "edit-truck") beginTruckEdit(action.dataset.id);
     if (action.dataset.action === "edit-driver") beginDriverEdit(action.dataset.id);
     if (action.dataset.action === "edit-account") beginAccountEdit(action.dataset.id);
+    if (action.dataset.action === "edit-trip-expense") beginTripExpenseEdit(action.dataset.id);
+    if (action.dataset.action === "delete-trip-expense") deleteTripExpense(action.dataset.id);
     if (action.dataset.action === "edit-domestic-trip") beginDomesticTripEdit(action.dataset.id);
     if (action.dataset.action === "delete-domestic-trip") deleteDomesticTrip(action.dataset.id);
     if (action.dataset.action === "edit-tariff") editTariff(action.dataset.id);
@@ -4121,6 +4201,8 @@ function init() {
   $("#admin-logout").addEventListener("click", logout);
   $("#driver-logout").addEventListener("click", logout);
   $("#driver-expense-form").addEventListener("submit", handleTripExpenseSubmit);
+  $("#expense-edit-form")?.addEventListener("submit", handleTripExpenseEditSubmit);
+  $("#expense-edit-cancel")?.addEventListener("click", cancelTripExpenseEdit);
   $("#account-role").addEventListener("change", updateAccountRoleFields);
   $("#account-form").addEventListener("submit", handleAccountSubmit);
   $("#cancel-account-edit").addEventListener("click", cancelAccountEdit);

@@ -41,6 +41,13 @@ const domesticTripSchema = z.object({
   driverId: z.string().min(1),
   manualDocumentDate: z.string().date().optional().or(z.literal(""))
 });
+const tripExpenseSchema = z.object({
+  tripId: z.string().trim().min(1),
+  amount: z.string().trim().regex(/^\d{1,10}(?:\.\d{1,2})?$/).refine(value => Number(value) > 0),
+  type: z.enum(["MAINTENANCE", "FUEL"]),
+  notes: z.string().trim().max(500).optional().default("")
+});
+const tripExpenseUpdateSchema = tripExpenseSchema.omit({ tripId: true });
 const fasahAppointmentSchema = z.object({
   bookingReferenceNumber: z.string().trim().min(1).max(80),
   operatorTicketNumber: z.string().trim().max(80).optional().default(""),
@@ -2034,13 +2041,7 @@ router.post("/trip-expenses", async (req, res) => {
     return res.status(403).json({ error: "driver_only" });
   }
   const attachments = parseManualAttachments(req.body?.attachments);
-  const schema = z.object({
-    tripId: z.string().trim().min(1),
-    amount: z.string().trim().regex(/^\d{1,10}(?:\.\d{1,2})?$/).refine(value => Number(value) > 0),
-    type: z.enum(["MAINTENANCE", "FUEL"]),
-    notes: z.string().trim().max(500).optional().default("")
-  });
-  const parsed = schema.safeParse(req.body);
+  const parsed = tripExpenseSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid_trip_expense" });
 
   const expense = await prisma.$transaction(async tx => {
@@ -2077,6 +2078,48 @@ router.post("/trip-expenses", async (req, res) => {
     return created;
   });
   res.status(201).json(mapTripExpense(expense));
+});
+
+router.patch("/trip-expenses/:id", requireAdmin, async (req, res) => {
+  const parsed = tripExpenseUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_trip_expense" });
+  const attachments = parseManualAttachments(req.body?.attachments);
+
+  const expense = await prisma.$transaction(async tx => {
+    const updated = await tx.tripExpense.update({
+      where: { id: req.params.id },
+      data: {
+        amount: parsed.data.amount,
+        type: parsed.data.type,
+        notes: parsed.data.notes || null,
+        ...(attachments.length ? {
+          attachments: { deleteMany: {}, create: attachments }
+        } : {})
+      },
+      include: tripExpenseInclude
+    });
+    await writeAudit(tx, req, "trip_expense.updated", "TripExpense", updated.id, {
+      tripId: updated.tripId,
+      amount: parsed.data.amount,
+      type: parsed.data.type,
+      attachmentsReplaced: attachments.length > 0
+    });
+    return updated;
+  });
+  res.json(mapTripExpense(expense));
+});
+
+router.delete("/trip-expenses/:id", requireAdmin, async (req, res) => {
+  await prisma.$transaction(async tx => {
+    const expense = await tx.tripExpense.findUniqueOrThrow({ where: { id: req.params.id } });
+    await writeAudit(tx, req, "trip_expense.deleted", "TripExpense", expense.id, {
+      tripId: expense.tripId,
+      amount: expense.amount.toString(),
+      type: expense.type
+    });
+    await tx.tripExpense.delete({ where: { id: expense.id } });
+  });
+  res.json({ id: req.params.id });
 });
 
 router.get("/attachments/:id", async (req, res) => {
