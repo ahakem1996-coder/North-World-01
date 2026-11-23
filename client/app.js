@@ -3295,10 +3295,10 @@ function renderDomesticTrips(query = "") {
       (doc.customerName || "").toLowerCase().includes(q) ||
       (doc.origin || "").toLowerCase().includes(q) ||
       (doc.destination || "").toLowerCase().includes(q) ||
-      (doc.documentNumber || "").toLowerCase().includes(q) ||
-      (doc.cargoDescription || "").toLowerCase().includes(q) ||
+      (doc.issuedAt || "").toLowerCase().includes(q) ||
+      (driverById(doc.driverId)?.name || "").toLowerCase().includes(q) ||
       (doc.truckPlateNumber || "").toLowerCase().includes(q) ||
-      (doc.cargoWaybillNumber || "").toLowerCase().includes(q)
+      (doc.truckFleetNumber || "").toLowerCase().includes(q)
     );
   });
 
@@ -3308,28 +3308,18 @@ function renderDomesticTrips(query = "") {
   tbody.innerHTML = filtered.map(doc => {
     const driver = driverById(doc.driverId);
     const driverName = driver ? driver.name : "—";
-    const driverStatusClass = doc.requestStatus === "ACCEPTED" ? "status-issued" : "status-pending";
-    const driverStatusText = doc.requestStatus === "ACCEPTED" ? "مقبولة من السائق" : "بانتظار قبول السائق";
-    const billingPill = doc.billingStatus === "PAID"
-      ? `<span class="status-pill status-paid">${translateText("مسددة")}</span>`
-      : doc.billingStatus === "INVOICED"
-      ? `<span class="status-pill status-invoiced">${translateText("مفوترة")} (${escapeHtml(doc.invoiceNumber || "")})</span>`
-      : `<span class="status-pill status-unbilled">${translateText("غير مفوترة")}</span>`;
+    const truckName = doc.truckPlateNumber
+      ? `${doc.truckPlateNumber}${doc.truckFleetNumber ? ` — ${doc.truckFleetNumber}` : ""}`
+      : (doc.truckFleetNumber || "—");
 
     return `
       <tr>
-        <td><strong>${escapeHtml(doc.documentNumber || doc.cargoWaybillNumber || "—")}</strong></td>
         <td>${escapeHtml(doc.customerName || "—")}</td>
-        <td><span class="route-badge">${escapeHtml(doc.origin || "—")} ← ${escapeHtml(doc.destination || "—")}</span></td>
-        <td>${escapeHtml(doc.cargoDescription || "بضائع عامة")}</td>
-        <td>${escapeHtml(driverName)}<br><small class="plate-text">${escapeHtml(doc.truckPlateNumber || "")}</small></td>
-        <td><strong>${doc.clientRate ? `${Number(doc.clientRate).toLocaleString("en-US", { minimumFractionDigits: 2 })} ر.س` : "—"}</strong></td>
-        <td><span class="status-pill ${driverStatusClass}">${translateText(driverStatusText)}</span></td>
-        <td>${billingPill}</td>
+        <td>${escapeHtml(doc.origin || "—")}</td>
+        <td>${escapeHtml(doc.destination || "—")}</td>
         <td>${formatDate(doc.issuedAt)}</td>
-        <td>
-          <button class="icon-button" data-action="archive" data-id="${escapeHtml(doc.id)}" title="${translateText("عرض في الأرشيف")}">▣</button>
-        </td>
+        <td>${escapeHtml(driverName)}</td>
+        <td>${escapeHtml(truckName)}</td>
       </tr>
     `;
   }).join("");
