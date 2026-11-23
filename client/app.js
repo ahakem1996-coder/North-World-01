@@ -44,7 +44,8 @@ const TRANSLATIONS = Object.freeze({
   "ملغاة": "Cancelled",
   "إلغاء الرحلة": "Cancel Trip",
   "إتمام الرحلة": "Complete Trip",
-  "لا يمكن إلغاء رحلة مكتملة أو مرتبطة بفاتورة.": "Completed or invoiced trips cannot be cancelled.",
+  "لا يمكن إلغاء رحلة غير نشطة أو مرتبطة بفاتورة.": "Inactive or invoiced trips cannot be cancelled.",
+  "لا يمكن إتمام رحلة مكتملة أو ملغاة.": "Completed or cancelled trips cannot be completed.",
   "ألغيت الرحلة": "Trip cancelled",
   "تم تحرير الشاحنة": "Truck released",
   "تكاليف الرحلات": "Trip Expenses",
@@ -2456,11 +2457,11 @@ function renderTripTracking() {
         <div><small>آخر تحديث</small><strong>${formatDateTime(lastUpdate)}</strong></div>
       </div>
       <div class="tracking-timeline-wrap"><div class="tracking-timeline">${timeline}</div></div>
-      ${active && currentAccount?.role === "ADMIN" ? `
+      ${currentAccount?.role === "ADMIN" ? `
         <div class="driver-trip-actions tracking-actions">
-          <label class="eir-field">رقم إيصال التسليم EIR (اختياري)<input type="text" data-tracking-eir autocomplete="off"></label>
-          <button class="button button-primary" type="button" data-action="complete-tracked-trip" data-id="${escapeHtml(doc.id)}">${translateText("إتمام الرحلة")}</button>
-          <button class="button button-danger" type="button" data-action="cancel-tracked-trip" data-id="${escapeHtml(doc.tripId)}" ${doc.invoiceId || doc.billingStatus !== "UNBILLED" ? `disabled title="${translateText("لا يمكن إلغاء رحلة مكتملة أو مرتبطة بفاتورة.")}"` : ""}>${translateText("إلغاء الرحلة")}</button>
+          ${active ? `<label class="eir-field">رقم إيصال التسليم EIR (اختياري)<input type="text" data-tracking-eir autocomplete="off"></label>` : ""}
+          <button class="button button-primary" type="button" data-action="complete-tracked-trip" data-id="${escapeHtml(doc.id)}" ${active ? "" : `disabled title="${translateText("لا يمكن إتمام رحلة مكتملة أو ملغاة.")}"`}>${translateText("إتمام الرحلة")}</button>
+          <button class="button button-danger" type="button" data-action="cancel-tracked-trip" data-id="${escapeHtml(doc.tripId)}" ${!active || doc.invoiceId || doc.billingStatus !== "UNBILLED" ? `disabled title="${translateText("لا يمكن إلغاء رحلة غير نشطة أو مرتبطة بفاتورة.")}"` : ""}>${translateText("إلغاء الرحلة")}</button>
         </div>
       ` : ""}
     </article>`;
