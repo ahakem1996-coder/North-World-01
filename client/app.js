@@ -3226,17 +3226,6 @@ function findMatchingTariff(customerName, origin, destination) {
   });
 }
 
-function autoLookupDomesticTariff() {
-  const customer = $("#domestic-customer")?.value.trim();
-  const origin = $("#domestic-origin")?.value.trim();
-  const destination = $("#domestic-destination")?.value.trim();
-  const tariff = findMatchingTariff(customer, origin, destination);
-  if (tariff) {
-    if ($("#domestic-client-rate")) $("#domestic-client-rate").value = tariff.price;
-    if ($("#domestic-driver-fee") && tariff.driverCost) $("#domestic-driver-fee").value = tariff.driverCost;
-  }
-}
-
 function autoLookupIssueTariff() {
   const customer = $("#issue-customer")?.value.trim();
   const destination = $("#issue-destination")?.value.trim();
@@ -3354,11 +3343,6 @@ async function handleDomesticTripSubmit(event) {
   const driverId = $("#domestic-driver")?.value;
   const truckId = $("#domestic-truck")?.value;
   const manualDocumentDate = $("#domestic-doc-date")?.value || dateOnly();
-  const clientRate = $("#domestic-client-rate")?.value.trim() || "";
-  const driverFee = $("#domestic-driver-fee")?.value.trim() || "";
-  const cargoDescription = $("#domestic-cargo")?.value.trim() || "";
-  const cargoWaybillNumber = $("#domestic-waybill")?.value.trim() || "";
-  const manualDocumentNumber = $("#domestic-doc-number")?.value.trim() || "";
 
   if (!customerName || !origin || !destination) {
     return showToast("أكمل اسم الشركة وموقعي التحميل والتسليم.", true);
@@ -3373,7 +3357,6 @@ async function handleDomesticTripSubmit(event) {
   }
 
   try {
-    const attachments = await encodeSelectedAttachments($("#domestic-attachments"));
     await apiRequest("/api/trips/domestic", {
       method: "POST",
       body: {
@@ -3382,13 +3365,7 @@ async function handleDomesticTripSubmit(event) {
         destination,
         truckId,
         driverId,
-        clientRate,
-        driverFee,
-        cargoDescription,
-        cargoWaybillNumber,
-        manualDocumentNumber,
         manualDocumentDate,
-        attachments
       }
     });
 
@@ -4033,9 +4010,6 @@ function init() {
   });
   $("#domestic-trip-form")?.addEventListener("submit", handleDomesticTripSubmit);
   $("#domestic-filter")?.addEventListener("input", event => renderDomesticTrips(event.target.value));
-  $("#domestic-customer")?.addEventListener("input", autoLookupDomesticTariff);
-  $("#domestic-origin")?.addEventListener("input", autoLookupDomesticTariff);
-  $("#domestic-destination")?.addEventListener("input", autoLookupDomesticTariff);
   $("#domestic-driver")?.addEventListener("change", () => syncDomesticTruckDriver("driver"));
   $("#domestic-truck")?.addEventListener("change", () => syncDomesticTruckDriver("truck"));
 

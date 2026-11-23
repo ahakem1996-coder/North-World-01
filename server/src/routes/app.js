@@ -1479,18 +1479,12 @@ router.post("/trips", requireAdmin, async (req, res) => {
 });
 
 router.post("/trips/domestic", requireAdmin, async (req, res) => {
-  const attachments = parseManualAttachments(req.body?.attachments);
   const schema = z.object({
     customerName: z.string().trim().min(1).max(160),
     origin: z.string().trim().min(1).max(240),
     destination: z.string().trim().min(1).max(240),
     truckId: z.string().min(1),
     driverId: z.string().min(1),
-    cargoDescription: z.string().trim().max(240).optional().default(""),
-    cargoWaybillNumber: z.string().trim().max(80).optional().default(""),
-    clientRate: z.string().trim().regex(/^\d{1,10}(?:\.\d{1,2})?$/).optional().or(z.literal("")),
-    driverFee: z.string().trim().regex(/^\d{1,10}(?:\.\d{1,2})?$/).optional().or(z.literal("")),
-    manualDocumentNumber: z.string().trim().max(80).optional().default(""),
     manualDocumentDate: z.string().date().optional().or(z.literal(""))
   });
   const parsed = schema.safeParse(req.body);
@@ -1518,17 +1512,14 @@ router.post("/trips/domestic", requireAdmin, async (req, res) => {
       update: {}
     });
 
-    const docNumber = parsed.data.manualDocumentNumber || parsed.data.cargoWaybillNumber || null;
-
     const created = await tx.trip.create({
       data: {
         tripType: "DOMESTIC",
+        operationAt: parsed.data.manualDocumentDate
+          ? new Date(`${parsed.data.manualDocumentDate}T00:00:00.000Z`)
+          : new Date(),
         originLocation: parsed.data.origin,
         deliveryDestination: parsed.data.destination,
-        cargoDescription: parsed.data.cargoDescription || null,
-        cargoWaybillNumber: parsed.data.cargoWaybillNumber || null,
-        clientRate: parsed.data.clientRate ? Number(parsed.data.clientRate) : null,
-        driverFee: parsed.data.driverFee ? Number(parsed.data.driverFee) : null,
         billingStatus: "UNBILLED",
         truckId: truck.id,
         truckFleetNumber: truck.fleetNumber,
@@ -1536,20 +1527,7 @@ router.post("/trips/domestic", requireAdmin, async (req, res) => {
         truckSerialNumber: truck.serialNumber,
         truckModel: truck.model,
         driverId: driver.id,
-        customerId: customer.id,
-        transportDocument: (docNumber || attachments.length) ? {
-          create: {
-            documentNumber: docNumber,
-            status: docNumber ? "ISSUED" : "DRAFT",
-            source: docNumber ? "MANUAL_ENTRY" : "INTERNAL_DRAFT",
-            issuedAt: parsed.data.manualDocumentDate
-              ? new Date(`${parsed.data.manualDocumentDate}T00:00:00.000Z`)
-              : new Date(),
-            ...(attachments.length ? {
-              attachments: { create: attachments }
-            } : {})
-          }
-        } : undefined
+        customerId: customer.id
       },
       include: tripInclude
     });
@@ -1560,8 +1538,7 @@ router.post("/trips/domestic", requireAdmin, async (req, res) => {
     });
 
     await writeAudit(tx, req, "trip.domestic_created", "Trip", created.id, {
-      customerName: customer.name,
-      attachmentCount: attachments.length
+      customerName: customer.name
     });
 
     return created;
