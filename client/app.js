@@ -49,6 +49,8 @@ const TRANSLATIONS = Object.freeze({
   "ألغيت الرحلة": "Trip cancelled",
   "تم تحرير الشاحنة": "Truck released",
   "النقليات": "Transport",
+  "الحسابات والفواتير": "Accounts and Invoices",
+  "التقارير": "Reports",
   "من تاريخ العملية": "From operation date",
   "إلى تاريخ العملية": "To operation date",
   "من تاريخ الفسح": "From clearance date",
@@ -1449,6 +1451,18 @@ function switchView(name) {
   if (transportGroup && ["fasah", "issue", "domestic", "tracking"].includes(name)) {
     transportGroup.classList.add("open");
     transportGroup.querySelector("[data-nav-group-toggle]")
+      ?.setAttribute("aria-expanded", "true");
+  }
+  const accountsGroup = $("#accounts-nav-group");
+  if (accountsGroup && ["tariffs", "invoices", "expenses"].includes(name)) {
+    accountsGroup.classList.add("open");
+    accountsGroup.querySelector("[data-nav-group-toggle]")
+      ?.setAttribute("aria-expanded", "true");
+  }
+  const reportsGroup = $("#reports-nav-group");
+  if (reportsGroup && ["archive", "reports"].includes(name)) {
+    reportsGroup.classList.add("open");
+    reportsGroup.querySelector("[data-nav-group-toggle]")
       ?.setAttribute("aria-expanded", "true");
   }
   const titles = {

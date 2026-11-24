@@ -63,12 +63,26 @@
             <button class="nav-link" data-view="tracking"><span class="nav-icon">⌖</span>تتبع الرحلات</button>
           </div>
         </div>
-        <button class="nav-link" data-view="tariffs"><span class="nav-icon">🏷</span>أسعار الشركات</button>
-        <button class="nav-link" data-view="invoices"><span class="nav-icon">🧾</span>الفواتير والحسابات</button>
+        <div class="nav-group" id="accounts-nav-group">
+          <button class="nav-group-toggle" type="button" data-nav-group-toggle aria-expanded="false">
+            <span class="nav-icon">🧾</span><span class="nav-group-label">الحسابات والفواتير</span><span class="nav-group-chevron">⌄</span>
+          </button>
+          <div class="nav-group-items">
+            <button class="nav-link" data-view="tariffs"><span class="nav-icon">🏷</span>أسعار الشركات</button>
+            <button class="nav-link" data-view="invoices"><span class="nav-icon">🧾</span>الفواتير والحسابات</button>
+            <button class="nav-link" data-view="expenses"><span class="nav-icon">﷼</span>تكاليف الرحلات</button>
+          </div>
+        </div>
         <button class="nav-link" data-view="fleet"><span class="nav-icon">▰</span>الأسطول والسائقون</button>
-        <button class="nav-link" data-view="expenses"><span class="nav-icon">﷼</span>تكاليف الرحلات</button>
-        <button class="nav-link" data-view="archive"><span class="nav-icon">▣</span>أرشيف الوثائق</button>
-        <button class="nav-link" data-view="reports"><span class="nav-icon">▥</span>التقارير والتصدير</button>
+        <div class="nav-group" id="reports-nav-group">
+          <button class="nav-group-toggle" type="button" data-nav-group-toggle aria-expanded="false">
+            <span class="nav-icon">▥</span><span class="nav-group-label">التقارير</span><span class="nav-group-chevron">⌄</span>
+          </button>
+          <div class="nav-group-items">
+            <button class="nav-link" data-view="archive"><span class="nav-icon">▣</span>أرشيف الوثائق</button>
+            <button class="nav-link" data-view="reports"><span class="nav-icon">▥</span>التقارير والتصدير</button>
+          </div>
+        </div>
         <button id="admin-accounts-link" class="nav-link hidden" data-view="accounts"><span class="nav-icon">♙</span>حسابات المستخدمين</button>
       </nav>
       <div class="sidebar-spacer"></div>
