@@ -842,6 +842,25 @@ html[dir="ltr"] .inv-table th {
   text-align: left;
 }
 
+.inv-table th {
+  padding: 5px 2px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+  font-size: 9px;
+}
+
+.inv-th-ar,
+.inv-th-en {
+  display: block;
+}
+
+.inv-th-en {
+  direction: ltr;
+  font-size: 7px;
+  font-weight: 500;
+}
+
 .inv-table td {
   padding: 10px 12px;
   border-bottom: 1px solid #e2e8f0;
@@ -915,6 +934,17 @@ html[dir="ltr"] .inv-table th {
   border: 2px solid #17324d;
   font-weight: 800;
   color: #17324d;
+}
+
+.inv-qr-image {
+  width: 92px;
+  height: 92px;
+  display: block;
+  margin: 0 auto 6px;
+}
+
+.printable-invoice-print-copy {
+  display: none;
 }
 
 .statement-sheet {
@@ -1032,14 +1062,19 @@ html[dir="ltr"] .inv-table th {
   body.printing-invoice * {
     visibility: hidden;
   }
-  body.printing-invoice #invoice-modal,
-  body.printing-invoice #invoice-modal .modal-content,
-  body.printing-invoice #printable-invoice-area,
-  body.printing-invoice #printable-invoice-area * {
+  body.printing-invoice #printable-invoice-print-copy,
+  body.printing-invoice #printable-invoice-print-copy * {
     visibility: visible;
   }
-  body.printing-invoice #invoice-modal {
+  body.printing-invoice #printable-invoice-print-copy {
     display: block !important;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: #fff;
+  }
+  body.printing-invoice #invoice-modal {
+    display: none !important;
   }
   body * {
     visibility: hidden;

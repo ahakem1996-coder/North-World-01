@@ -1,6 +1,7 @@
 import { Router } from "express";
 import ExcelJS from "exceljs";
 import { PDFDocument } from "pdf-lib";
+import QRCode from "qrcode";
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
 import { requireAdmin } from "../middleware/auth.js";
@@ -2080,6 +2081,33 @@ router.get("/invoices/:id", requireAdmin, async (req, res) => {
   });
   if (!invoice) return res.status(404).json({ error: "invoice_not_found" });
   res.json(mapInvoice(invoice));
+});
+
+router.get("/invoices/:id/qr", requireAdmin, async (req, res) => {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: req.params.id },
+    include: { customer: true }
+  });
+  if (!invoice) return res.status(404).json({ error: "invoice_not_found" });
+
+  const tlv = (tag, value) => {
+    const text = Buffer.from(String(value || ""), "utf8");
+    return Buffer.concat([Buffer.from([tag, text.length]), text]);
+  };
+  const payload = Buffer.concat([
+    tlv(1, "مؤسسة عالم الشمال للنقل البري"),
+    tlv(2, "310245896300003"),
+    tlv(3, invoice.issueDate.toISOString()),
+    tlv(4, invoice.totalAmount.toString()),
+    tlv(5, invoice.taxAmount.toString())
+  ]).toString("base64");
+
+  const dataUrl = await QRCode.toDataURL(payload, {
+    width: 220,
+    margin: 1,
+    errorCorrectionLevel: "M"
+  });
+  res.json({ dataUrl });
 });
 
 router.patch("/invoices/:id/status", requireAdmin, async (req, res) => {

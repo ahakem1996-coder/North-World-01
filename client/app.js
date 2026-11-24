@@ -4298,15 +4298,15 @@ function openPrintableInvoice(invoiceId) {
       <thead>
         <tr>
           <th style="width: 40px; text-align: center;">#</th>
-          <th>الوصف / Description</th>
-          <th>من - إلى / From-To</th>
-          <th>الوحدة / Unit</th>
-          <th>الكمية / Qty</th>
-          <th>السعر / Price</th>
-          <th>الإجمالي دون الضريبة / Total Excl. VAT</th>
-          <th>نسبة الضريبة / VAT %</th>
-          <th>مبلغ الضريبة / VAT Amount</th>
-          <th>الإجمالي شامل الضريبة / Total Incl. VAT</th>
+          <th><span class="inv-th-ar">الوصف</span><span class="inv-th-en">Description</span></th>
+          <th><span class="inv-th-ar">من - إلى</span><span class="inv-th-en">FROM - TO</span></th>
+          <th><span class="inv-th-ar">الوحدة</span><span class="inv-th-en">Unit</span></th>
+          <th><span class="inv-th-ar">الكمية</span><span class="inv-th-en">Qty</span></th>
+          <th><span class="inv-th-ar">السعر</span><span class="inv-th-en">Price</span></th>
+          <th><span class="inv-th-ar">الإجمالي قبل الضريبة</span><span class="inv-th-en">Total Excl. VAT</span></th>
+          <th><span class="inv-th-ar">نسبة الضريبة</span><span class="inv-th-en">VAT %</span></th>
+          <th><span class="inv-th-ar">مبلغ الضريبة</span><span class="inv-th-en">VAT Amount</span></th>
+          <th><span class="inv-th-ar">الإجمالي</span><span class="inv-th-en">Total</span></th>
         </tr>
       </thead>
       <tbody>
@@ -4352,6 +4352,32 @@ function openPrintableInvoice(invoiceId) {
   `;
 
   $("#invoice-modal")?.classList.remove("hidden");
+  const printCopy = $("#printable-invoice-print-copy");
+  if (printCopy) printCopy.innerHTML = printArea.innerHTML;
+
+  apiRequest(`/api/invoices/${encodeURIComponent(invoiceId)}/qr`)
+    .then(qr => {
+      const qrHtml = `<img class="inv-qr-image" src="${escapeHtml(qr.dataUrl)}" alt="QR invoice code">`;
+      printArea.querySelector(".inv-qr-placeholder")?.replaceWith(
+        (() => {
+          const template = document.createElement("template");
+          template.innerHTML = qrHtml;
+          return template.content.firstElementChild;
+        })()
+      );
+      if (printCopy) {
+        printCopy.querySelector(".inv-qr-placeholder")?.replaceWith(
+          (() => {
+            const template = document.createElement("template");
+            template.innerHTML = qrHtml;
+            return template.content.firstElementChild;
+          })()
+        );
+      }
+    })
+    .catch(error => {
+      showToast(`تعذر تحميل رمز QR للفاتورة: ${error.message}`, true);
+    });
 }
 
 async function updateInvoiceStatus(invoiceId, newStatus) {
@@ -4687,9 +4713,33 @@ function init() {
 
   // Invoice Modal actions
   $("#print-invoice-btn")?.addEventListener("click", () => {
-    $("#invoice-modal")?.classList.remove("hidden");
-    document.body.classList.add("printing-invoice");
-    window.requestAnimationFrame(() => window.print());
+    const modalArea = $("#printable-invoice-area");
+    const printCopy = $("#printable-invoice-print-copy");
+    if (printCopy && modalArea) printCopy.innerHTML = modalArea.innerHTML;
+    const printInvoice = () => {
+      document.body.classList.add("printing-invoice");
+      window.requestAnimationFrame(() => window.print());
+    };
+    if (currentPrintableInvoiceId) {
+      apiRequest(`/api/invoices/${encodeURIComponent(currentPrintableInvoiceId)}/qr`)
+        .then(qr => {
+          const qrHtml = `<img class="inv-qr-image" src="${escapeHtml(qr.dataUrl)}" alt="QR invoice code">`;
+          [modalArea, printCopy].filter(Boolean).forEach(area => {
+            area.querySelectorAll(".inv-qr-placeholder").forEach(placeholder => {
+              const template = document.createElement("template");
+              template.innerHTML = qrHtml;
+              placeholder.replaceWith(template.content.firstElementChild);
+            });
+          });
+          printInvoice();
+        })
+        .catch(error => {
+          showToast(`تعذر تحميل رمز QR للفاتورة: ${error.message}`, true);
+          printInvoice();
+        });
+    } else {
+      printInvoice();
+    }
   });
   $("#close-invoice-modal-btn")?.addEventListener("click", () => $("#invoice-modal")?.classList.add("hidden"));
   $("#invoice-modal-backdrop")?.addEventListener("click", () => $("#invoice-modal")?.classList.add("hidden"));
