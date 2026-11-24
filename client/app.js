@@ -48,6 +48,23 @@ const TRANSLATIONS = Object.freeze({
   "لا يمكن إتمام رحلة مكتملة أو ملغاة.": "Completed or cancelled trips cannot be completed.",
   "ألغيت الرحلة": "Trip cancelled",
   "تم تحرير الشاحنة": "Truck released",
+  "من تاريخ العملية": "From operation date",
+  "إلى تاريخ العملية": "To operation date",
+  "ابحث باسم الشركة": "Search by company",
+  "ترتيب العمليات": "Operation order",
+  "الأقدم إلى الأحدث": "Oldest to newest",
+  "الأحدث إلى الأقدم": "Newest to oldest",
+  "تحديد كل النتائج الظاهرة": "Select all visible results",
+  "عملية محددة": "selected operations",
+  "ملفات PDF للدمج": "PDFs to merge",
+  "PDF الفسح فقط": "Clearance PDFs only",
+  "PDF وثائق النقل فقط": "Transport document PDFs only",
+  "PDF الفسح ووثائق النقل": "Clearance and transport PDFs",
+  "تصدير PDF للعمليات المحددة": "Export selected operations as PDF",
+  "تظهر الوثائق وطلبات الرحلات المحفوظة في قاعدة بيانات الشركة.": "Documents and trip requests saved in the company database appear here.",
+  "اختر عملية واحدة على الأقل لتصدير PDF.": "Select at least one operation to export a PDF.",
+  "تم دمج ملفات PDF المحددة وتنزيلها.": "The selected PDFs were merged and downloaded.",
+  "جارٍ تجهيز ملف PDF الموحد...": "Preparing the merged PDF...",
   "تكاليف الرحلات": "Trip Expenses",
   "مصروفات التشغيل": "Operating Expenses",
   "سجل موحد لمصروفات السائقين المسجلة على رحلاتهم.": "A unified record of driver expenses reported for their trips.",
@@ -923,6 +940,7 @@ let autoMatchedIssueSelection = null;
 let transportReferenceExtractionSequence = 0;
 let transportReferenceExtractionInFlight = false;
 const selectedTruckIds = new Set();
+const selectedArchiveTripIds = new Set();
 const selectedDriverIds = new Set();
 
 function translateText(value) {
@@ -1084,6 +1102,10 @@ const API_ERRORS = {
   attachment_size_exceeded: "حجم الملف الواحد لا يتجاوز 5 MB وإجمالي الملفات لا يتجاوز 8 MB.",
   attachment_type_invalid: "ارفع ملفات PDF أو JPG أو PNG فقط.",
   attachment_access_denied: "لا تملك صلاحية تنزيل هذا المرفق.",
+  archive_pdf_no_files: "العمليات المحددة لا تحتوي على ملفات PDF من النوع المختار.",
+  archive_pdf_too_large: "إجمالي حجم ملفات PDF المحددة يتجاوز الحد المسموح به (50 MB).",
+  archive_pdf_invalid: "تعذر دمج أحد ملفات PDF المحددة لأنه غير صالح أو محمي.",
+  archive_selection_limit: "يمكن دمج ملفات PDF لما يصل إلى 500 عملية في المرة الواحدة.",
   request_too_large: "حجم الطلب أكبر من الحد المسموح. قلّل حجم المرفقات.",
   invalid_request_body: "تعذر قراءة بيانات الطلب.",
   clearance_unavailable: "البيان غير متاح أو سبق استخدامه في رحلة.",
@@ -2354,14 +2376,49 @@ async function downloadImportTemplate(type) {
   }
 }
 
-function renderArchive(query = "") {
+function sortArchiveDocs(docs) {
+  const direction = $("#archive-sort").value === "newest" ? -1 : 1;
+  return [...docs].sort((a, b) =>
+    direction * String(a.issuedAt || "").localeCompare(String(b.issuedAt || "")) ||
+    String(a.tripId).localeCompare(String(b.tripId))
+  );
+}
+
+function getFilteredArchiveDocs(query = "") {
   const term = String(query || "").trim().toLowerCase();
-  const matches = [...state.docs].filter(doc => {
+  const from = $("#archive-from").value;
+  const to = $("#archive-to").value;
+  const customer = $("#archive-customer").value.trim().toLowerCase();
+  return sortArchiveDocs(state.docs.filter(doc => {
+    const operationDate = String(doc.issuedAt || "").slice(0, 10);
+    if ((from && operationDate < from) || (to && operationDate > to)) return false;
+    if (customer && !String(doc.customerName || "").toLowerCase().includes(customer)) return false;
     const truck = truckForTrip(doc);
     return [doc.documentNumber, doc.declarationNumber, doc.containerNumber, truck?.plateNumber, doc.customerName]
       .some(value => String(value || "").toLowerCase().includes(term));
-  }).sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
+  }));
+}
+
+function updateArchiveSelectionControls(matches = getFilteredArchiveDocs($("#archive-query").value)) {
+  const selectedVisible = matches.filter(doc => selectedArchiveTripIds.has(doc.tripId)).length;
+  const selectAll = $("#archive-select-all");
+  selectAll.checked = matches.length > 0 && selectedVisible === matches.length;
+  selectAll.indeterminate = selectedVisible > 0 && selectedVisible < matches.length;
+  selectAll.disabled = matches.length === 0;
+  $("#archive-selection-count").textContent =
+    `${selectedArchiveTripIds.size} ${translateText("عملية محددة")}`;
+  $("#archive-export-pdf").disabled = selectedArchiveTripIds.size === 0;
+}
+
+function renderArchive(query = "") {
+  const term = String(query || "").trim();
+  const availableTripIds = new Set(state.docs.map(doc => doc.tripId));
+  for (const tripId of selectedArchiveTripIds) {
+    if (!availableTripIds.has(tripId)) selectedArchiveTripIds.delete(tripId);
+  }
+  const matches = getFilteredArchiveDocs(query);
   $("#archive-count").textContent = `${matches.length} وثيقة`;
+  updateArchiveSelectionControls(matches);
   const container = $("#archive-results");
   if (!matches.length) {
     container.innerHTML = `<div class="panel empty-state"><span>▣</span><strong>${term ? "لا توجد وثائق مطابقة" : "الأرشيف فارغ"}</strong><p>${term ? "جرّب البحث برقم مختلف." : "ستظهر الوثائق هنا بعد إصدارها."}</p></div>`;
@@ -2372,12 +2429,54 @@ function renderArchive(query = "") {
     const driver = driverById(doc.driverId);
     const status = documentStatus(doc);
     return `<article class="archive-card">
+      <label class="archive-select-cell"><input type="checkbox" data-archive-select data-id="${escapeHtml(doc.tripId)}" ${selectedArchiveTripIds.has(doc.tripId) ? "checked" : ""} aria-label="${translateText("تحديد العملية")} ${escapeHtml(documentLabel(doc))}"></label>
       <div><h3>${escapeHtml(documentLabel(doc))}</h3><p>تاريخ الإصدار: ${doc.status === "DRAFT" ? "لم يصدر بعد" : formatDate(doc.issuedAt)}</p></div>
       <div><span class="status-pill ${status.className}">${status.text}</span><p>${escapeHtml(doc.declarationNumber)}</p></div>
       <div class="archive-meta">الحاوية: ${escapeHtml(doc.containerNumber)} · اللوحة: ${escapeHtml(truck?.plateNumber || "—")}<br>العميل: ${escapeHtml(doc.customerName)} · السائق: ${escapeHtml(driver?.name || "—")}${renderAttachmentLinks(doc.attachments, "مرفقات وثيقة النقل")}</div>
       <div class="archive-actions"><button class="button button-secondary" data-action="pdf" data-id="${escapeHtml(doc.id)}">عرض / PDF</button>${doc.returnedAt || doc.cancelledAt ? "" : `<label class="eir-field">رقم إيصال EIR (اختياري)<input type="text" data-return-eir autocomplete="off"></label>`}${doc.cancelledAt ? `<span class="status-pill status-maintenance">${translateText("الملغاة")}</span>` : `<button class="button button-light" data-action="return" data-id="${escapeHtml(doc.id)}" ${doc.returnedAt ? "disabled" : ""}>تسجيل الإعادة</button>`}</div>
     </article>`;
   }).join("");
+}
+
+async function exportSelectedArchivePdf() {
+  const selectedTrips = sortArchiveDocs(
+    state.docs.filter(doc => selectedArchiveTripIds.has(doc.tripId))
+  );
+  if (!selectedTrips.length) return showToast("اختر عملية واحدة على الأقل لتصدير PDF.", true);
+
+  const button = $("#archive-export-pdf");
+  button.disabled = true;
+  button.textContent = translateText("جارٍ تجهيز ملف PDF الموحد...");
+  try {
+    const response = await fetch("/api/archive/merge-pdf", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tripIds: selectedTrips.map(doc => doc.tripId),
+        source: $("#archive-pdf-type").value
+      })
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(translateText(API_ERRORS[payload.error] || `تعذر تصدير PDF (${response.status}).`));
+    }
+
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `north-world-archive-${dateOnly()}.pdf`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast("تم دمج ملفات PDF المحددة وتنزيلها.");
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.textContent = translateText("تصدير PDF للعمليات المحددة");
+    updateArchiveSelectionControls();
+  }
 }
 
 function renderTripTracking() {
@@ -4165,6 +4264,27 @@ function init() {
   $("#tracking-filter").addEventListener("change", renderTripTracking);
   $("#refresh-tracking").addEventListener("click", () => refreshTracking(true));
   $("#archive-query").addEventListener("input", event => renderArchive(event.target.value));
+  ["archive-from", "archive-to", "archive-customer", "archive-sort"].forEach(id => {
+    const eventName = id === "archive-customer" ? "input" : "change";
+    $(`#${id}`).addEventListener(eventName, () => renderArchive($("#archive-query").value));
+  });
+  $("#archive-select-all").addEventListener("change", event => {
+    const visibleTrips = getFilteredArchiveDocs($("#archive-query").value);
+    if (event.target.checked) {
+      visibleTrips.forEach(doc => selectedArchiveTripIds.add(doc.tripId));
+    } else {
+      visibleTrips.forEach(doc => selectedArchiveTripIds.delete(doc.tripId));
+    }
+    renderArchive($("#archive-query").value);
+  });
+  $("#archive-results").addEventListener("change", event => {
+    const checkbox = event.target.closest("[data-archive-select]");
+    if (!checkbox) return;
+    if (checkbox.checked) selectedArchiveTripIds.add(checkbox.dataset.id);
+    else selectedArchiveTripIds.delete(checkbox.dataset.id);
+    updateArchiveSelectionControls();
+  });
+  $("#archive-export-pdf").addEventListener("click", exportSelectedArchivePdf);
   $("#truck-form").addEventListener("submit", handleTruckSubmit);
   $("#driver-form").addEventListener("submit", handleDriverSubmit);
   $("#toggle-truck-form").addEventListener("click", () => {

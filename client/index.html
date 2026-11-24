@@ -534,7 +534,20 @@
 
         <section class="view" id="view-archive">
           <div class="page-heading"><div><span class="eyebrow">المستندات</span><h1>أرشيف الوثائق</h1><p>ابحث برقم البيان أو الحاوية أو الوثيقة أو لوحة الشاحنة.</p></div><span class="archive-count" id="archive-count">0 وثيقة</span></div>
-          <section class="panel search-panel"><label class="search-input-wrap"><span>⌕</span><input id="archive-query" type="search" placeholder="ابحث في الأرشيف..." autocomplete="off"></label><div class="search-hint">تظهر الوثائق وطلبات الرحلات المحفوظة في قاعدة بيانات الشركة.</div></section>
+          <section class="panel archive-tools">
+            <label class="search-input-wrap"><span>⌕</span><input id="archive-query" type="search" placeholder="ابحث في الأرشيف..." autocomplete="off"></label>
+            <label class="field">من تاريخ العملية<input id="archive-from" type="date"></label>
+            <label class="field">إلى تاريخ العملية<input id="archive-to" type="date"></label>
+            <label class="field">اسم الشركة<input id="archive-customer" type="search" placeholder="ابحث باسم الشركة" autocomplete="off"></label>
+            <label class="field">ترتيب العمليات<select id="archive-sort"><option value="oldest">الأقدم إلى الأحدث</option><option value="newest">الأحدث إلى الأقدم</option></select></label>
+            <div class="archive-selection-tools">
+              <label class="archive-select-all"><input id="archive-select-all" type="checkbox"><span>تحديد كل النتائج الظاهرة</span></label>
+              <span id="archive-selection-count">0 عملية محددة</span>
+            </div>
+            <label class="field">ملفات PDF للدمج<select id="archive-pdf-type"><option value="clearance">PDF الفسح فقط</option><option value="transport">PDF وثائق النقل فقط</option><option value="both">PDF الفسح ووثائق النقل</option></select></label>
+            <button id="archive-export-pdf" class="button button-danger" type="button" disabled>تصدير PDF للعمليات المحددة</button>
+            <div class="search-hint">تظهر الوثائق وطلبات الرحلات المحفوظة في قاعدة بيانات الشركة.</div>
+          </section>
           <div id="archive-results" class="result-list"></div>
         </section>
 

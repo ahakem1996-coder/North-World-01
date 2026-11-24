@@ -1,5 +1,6 @@
 import { Router } from "express";
 import ExcelJS from "exceljs";
+import { PDFDocument } from "pdf-lib";
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
 import { requireAdmin } from "../middleware/auth.js";
@@ -33,6 +34,12 @@ const truckStatuses = ["AVAILABLE", "ASSIGNED", "ON_TRIP", "MAINTENANCE", "INACT
 const ACTIVE_TRIP_FILTER = { emptyReturnedAt: null, cancelledAt: null };
 const MAX_IMPORT_FILE_BYTES = 3 * 1024 * 1024;
 const MAX_IMPORT_ROWS = 500;
+const MAX_ARCHIVE_PDF_MERGE_BYTES = 50 * 1024 * 1024;
+const archivePdfMergeSchema = z.object({
+  tripIds: z.array(z.string().trim().min(1)).min(1).max(500)
+    .refine(tripIds => new Set(tripIds).size === tripIds.length),
+  source: z.enum(["clearance", "transport", "both"])
+});
 const domesticTripSchema = z.object({
   customerName: z.string().trim().min(1).max(160),
   origin: z.string().trim().min(1).max(240),
@@ -2123,6 +2130,80 @@ router.delete("/trip-expenses/:id", requireAdmin, async (req, res) => {
     await tx.tripExpense.delete({ where: { id: expense.id } });
   });
   res.json({ id: req.params.id });
+});
+
+router.post("/archive/merge-pdf", requireAdmin, async (req, res) => {
+  const parsed = archivePdfMergeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const selectionLimit = parsed.error.issues.some(issue => issue.path[0] === "tripIds");
+    return res.status(selectionLimit ? 400 : 400).json({
+      error: selectionLimit ? "archive_selection_limit" : "invalid_archive_selection"
+    });
+  }
+
+  const trips = await prisma.trip.findMany({
+    where: { id: { in: parsed.data.tripIds } },
+    include: {
+      customsClearance: {
+        include: { attachments: { where: { contentType: "application/pdf" }, select: { id: true, size: true, data: true } } }
+      },
+      transportDocument: {
+        include: { attachments: { where: { contentType: "application/pdf" }, select: { id: true, size: true, data: true } } }
+      }
+    }
+  });
+  const tripById = new Map(trips.map(trip => [trip.id, trip]));
+  const orderedTrips = parsed.data.tripIds.map(tripId => tripById.get(tripId)).filter(Boolean);
+
+  const pdfAttachments = [];
+  for (const trip of orderedTrips) {
+    if (parsed.data.source !== "transport") {
+      pdfAttachments.push(...(trip.customsClearance?.attachments || []));
+    }
+    if (parsed.data.source !== "clearance") {
+      pdfAttachments.push(...(trip.transportDocument?.attachments || []));
+    }
+  }
+  if (!pdfAttachments.length) return res.status(400).json({ error: "archive_pdf_no_files" });
+
+  const totalSize = pdfAttachments.reduce((total, attachment) => total + attachment.size, 0);
+  if (totalSize > MAX_ARCHIVE_PDF_MERGE_BYTES) {
+    return res.status(413).json({ error: "archive_pdf_too_large" });
+  }
+
+  try {
+    const merged = await PDFDocument.create();
+    for (const attachment of pdfAttachments) {
+      const sourcePdf = await PDFDocument.load(Buffer.from(attachment.data), {
+        ignoreEncryption: false,
+        updateMetadata: false
+      });
+      const copiedPages = await merged.copyPages(sourcePdf, sourcePdf.getPageIndices());
+      copiedPages.forEach(page => merged.addPage(page));
+    }
+    const output = await merged.save();
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: req.user.id,
+        action: "archive.pdf_merged",
+        entityType: "Trip",
+        entityId: orderedTrips.map(trip => trip.id).join(","),
+        metadata: {
+          tripCount: orderedTrips.length,
+          source: parsed.data.source,
+          pdfCount: pdfAttachments.length
+        }
+      }
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="north-world-archive-${new Date().toISOString().slice(0, 10)}.pdf"`);
+    res.setHeader("Content-Length", output.length);
+    res.send(Buffer.from(output));
+  } catch {
+    res.status(400).json({ error: "archive_pdf_invalid" });
+  }
 });
 
 router.get("/attachments/:id", async (req, res) => {
