@@ -3582,9 +3582,27 @@ function populateDomesticOptions() {
 function syncDomesticTruckDriver(source) {
   if (source === "driver") {
     const driverId = $("#domestic-driver")?.value;
-    if (!driverId) return;
-    const truck = state.trucks.find(t => t.driverId === driverId && t.status === "AVAILABLE" && !t.deletedAt);
-    if (truck && $("#domestic-truck")) $("#domestic-truck").value = truck.id;
+    const truckSelect = $("#domestic-truck");
+    if (!truckSelect) return;
+    if (!driverId) {
+      truckSelect.value = "";
+      return;
+    }
+
+    const editingTrip = editingDomesticTripId
+      ? state.docs.find(doc => doc.tripId === editingDomesticTripId)
+      : null;
+    const truck = state.trucks.find(t =>
+      t.driverId === driverId &&
+      !t.deletedAt &&
+      (t.status === "AVAILABLE" ||
+        t.status === "ASSIGNED" && (t.id === editingTrip?.truckId))
+    );
+    if (truck) {
+      truckSelect.value = truck.id;
+    } else {
+      truckSelect.value = "";
+    }
   } else if (source === "truck") {
     const truckId = $("#domestic-truck")?.value;
     if (!truckId) return;
