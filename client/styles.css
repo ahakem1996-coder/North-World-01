@@ -713,6 +713,17 @@ html[dir="ltr"] .invoice-summary-card {
   padding: 8px 6px;
 }
 
+.inv-table th:nth-child(1) { width: 4%; }
+.inv-table th:nth-child(2) { width: 23%; }
+.inv-table th:nth-child(3) { width: 14%; }
+.inv-table th:nth-child(4) { width: 7%; }
+.inv-table th:nth-child(5) { width: 7%; }
+.inv-table th:nth-child(6) { width: 9%; }
+.inv-table th:nth-child(7) { width: 12%; }
+.inv-table th:nth-child(8) { width: 8%; }
+.inv-table th:nth-child(9) { width: 8%; }
+.inv-table th:nth-child(10) { width: 8%; }
+
 .inv-table .inv-number {
   text-align: center;
   direction: ltr;
@@ -1018,6 +1029,18 @@ html[dir="ltr"] .inv-table th {
 
 /* Print Styles */
 @media print {
+  body.printing-invoice * {
+    visibility: hidden;
+  }
+  body.printing-invoice #invoice-modal,
+  body.printing-invoice #invoice-modal .modal-content,
+  body.printing-invoice #printable-invoice-area,
+  body.printing-invoice #printable-invoice-area * {
+    visibility: visible;
+  }
+  body.printing-invoice #invoice-modal {
+    display: block !important;
+  }
   body * {
     visibility: hidden;
   }

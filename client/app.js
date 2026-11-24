@@ -4238,13 +4238,15 @@ function openPrintableInvoice(invoiceId) {
     const cargoLabel = trip.containerNumber || trip.cargoDescription || "—";
     const rateVal = trip.clientRate ? Number(trip.clientRate) : 0;
     const lineVat = Number((rateVal * taxRate / 100).toFixed(2));
-    const description = `${tripTypeLabel} - ${escapeHtml(refNumber)} - ${escapeHtml(cargoLabel)} - ${escapeHtml(trip.origin || "—")} إلى ${escapeHtml(trip.destination || "—")}`;
+    const description = `${tripTypeLabel} - ${escapeHtml(refNumber)} - ${escapeHtml(cargoLabel)}`;
+    const fromTo = `من ${escapeHtml(trip.origin || trip.port || "—")} إلى ${escapeHtml(trip.destination || "—")}`;
 
     return `
       <tr>
         <td style="text-align: center;">${idx + 1}</td>
         <td>${description}</td>
-        <td class="inv-number">رحلة</td>
+        <td>${fromTo}</td>
+        <td class="inv-number">عدد</td>
         <td class="inv-number">1</td>
         <td class="inv-number">${rateVal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
         <td class="inv-number">${rateVal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
@@ -4296,14 +4298,15 @@ function openPrintableInvoice(invoiceId) {
       <thead>
         <tr>
           <th style="width: 40px; text-align: center;">#</th>
-        <th>البيان / Description</th>
-        <th>الوحدة / Unit</th>
-        <th>الكمية / Qty</th>
-        <th>السعر / Price</th>
-        <th>الإجمالي دون الضريبة</th>
-        <th>نسبة الضريبة</th>
-        <th>مبلغ الضريبة</th>
-        <th>الإجمالي شامل الضريبة</th>
+          <th>الوصف / Description</th>
+          <th>من - إلى / From-To</th>
+          <th>الوحدة / Unit</th>
+          <th>الكمية / Qty</th>
+          <th>السعر / Price</th>
+          <th>الإجمالي دون الضريبة / Total Excl. VAT</th>
+          <th>نسبة الضريبة / VAT %</th>
+          <th>مبلغ الضريبة / VAT Amount</th>
+          <th>الإجمالي شامل الضريبة / Total Incl. VAT</th>
         </tr>
       </thead>
       <tbody>
@@ -4636,6 +4639,7 @@ function init() {
   });
   window.addEventListener("afterprint", () => {
     document.body.classList.remove("printing-statement");
+    document.body.classList.remove("printing-invoice");
   });
 
   // Tariff auto-lookup on Port issue form
@@ -4682,7 +4686,11 @@ function init() {
   $("#invoice-search")?.addEventListener("input", event => renderInvoices(event.target.value));
 
   // Invoice Modal actions
-  $("#print-invoice-btn")?.addEventListener("click", () => window.print());
+  $("#print-invoice-btn")?.addEventListener("click", () => {
+    $("#invoice-modal")?.classList.remove("hidden");
+    document.body.classList.add("printing-invoice");
+    window.requestAnimationFrame(() => window.print());
+  });
   $("#close-invoice-modal-btn")?.addEventListener("click", () => $("#invoice-modal")?.classList.add("hidden"));
   $("#invoice-modal-backdrop")?.addEventListener("click", () => $("#invoice-modal")?.classList.add("hidden"));
 
