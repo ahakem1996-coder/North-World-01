@@ -199,6 +199,14 @@ model Customer {
   email     String?
   address   String?
   taxNumber String?
+  commercialRegistration String?
+  street                String?
+  city                  String?
+  district              String?
+  country               String?
+  buildingNumber        String?
+  postalCode            String?
+  additionalAddress     String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
   trips     Trip[]

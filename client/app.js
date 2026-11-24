@@ -51,6 +51,7 @@ const TRANSLATIONS = Object.freeze({
   "النقليات": "Transport",
   "الحسابات والفواتير": "Accounts and Invoices",
   "التقارير": "Reports",
+  "معلومات الشركات": "Company Information",
   "من تاريخ العملية": "From operation date",
   "إلى تاريخ العملية": "To operation date",
   "من تاريخ الفسح": "From clearance date",
@@ -279,7 +280,7 @@ const TRANSLATIONS = Object.freeze({
   "المسار": "Route",
   "تم تحديث تتبع الرحلات.": "Trip tracking refreshed.",
   "أرشيف الوثائق": "Document Archive",
-  "التقارير والتصدير": "Reports & Export",
+  "سجل العمليات": "Operation Log",
   "حسابات المستخدمين": "User Accounts",
   "الإعداد الأول": "Initial Setup",
   "إنشاء حساب الأدمن": "Create Administrator Account",
@@ -1219,6 +1220,7 @@ async function refreshServerState() {
   renderDomesticTrips();
   populateDomesticOptions();
   renderTariffs();
+  renderCompanies();
   renderInvoices();
   populateInvoiceWizardCustomers();
   populateCustomerDatalist();
@@ -1476,7 +1478,8 @@ function switchView(name) {
     tracking: "تتبع الرحلات",
     expenses: "تكاليف الرحلات",
     archive: "أرشيف الوثائق",
-    reports: "التقارير والتصدير",
+    reports: "سجل العمليات",
+    companies: "معلومات الشركات",
     accounts: "حسابات المستخدمين"
   };
   $("#page-title").textContent = translateText(titles[name] || "الرئيسية");
@@ -1486,6 +1489,7 @@ function switchView(name) {
   if (name === "issue") populateIssueOptions();
   if (name === "domestic") { renderDomesticTrips(); populateDomesticOptions(); }
   if (name === "tariffs") renderTariffs();
+  if (name === "companies") renderCompanies();
   if (name === "invoices") { renderInvoices(); populateInvoiceWizardCustomers(); }
   if (name === "fleet") { renderFleet(); renderDrivers(); }
   if (name === "tracking") renderTripTracking();
@@ -2623,13 +2627,18 @@ function populatePortFilter() {
 function filteredDocs() {
   const from = $("#filter-from").value;
   const to = $("#filter-to").value;
+  const clearanceFrom = $("#filter-clearance-from")?.value || "";
+  const clearanceTo = $("#filter-clearance-to")?.value || "";
   const port = $("#filter-port").value;
   const customer = $("#filter-customer").value.trim().toLowerCase();
   const status = $("#filter-return").value;
   return [...state.docs].filter(doc => {
     if (doc.cancelledAt) return false;
+    const clearanceDate = String(clearanceById(doc.clearanceId)?.clearedAt || "").slice(0, 10);
     return (!from || doc.issuedAt >= from) &&
       (!to || doc.issuedAt <= to) &&
+      (!clearanceFrom || (clearanceDate && clearanceDate >= clearanceFrom)) &&
+      (!clearanceTo || (clearanceDate && clearanceDate <= clearanceTo)) &&
       (!port || doc.port === port) &&
       (!customer || doc.customerName.toLowerCase().includes(customer)) &&
       (!status || returnState(doc) === status);
@@ -2657,6 +2666,56 @@ function renderReports() {
       <td class="${returned.className}">${returned.text}<br>إيصال EIR: ${escapeHtml(doc.eir || "—")}<br>المهلة المجانية: ${formatDate(doc.freeTimeEndsAt)}</td>
     </tr>`;
   }).join("");
+  renderDetailedStatement(docs);
+}
+
+function renderDetailedStatement(docs = filteredDocs()) {
+  const area = $("#detailed-statement-area");
+  if (!area) return;
+
+  const rows = docs.map((doc, index) => {
+    const truck = truckForTrip(doc);
+    const clearance = clearanceById(doc.clearanceId);
+    const amount = Number(doc.clientRate || 0);
+    const vat = Number((amount * 0.15).toFixed(2));
+    return `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${formatDate(doc.issuedAt)}</td>
+        <td>${escapeHtml(doc.documentNumber || doc.declarationNumber || "—")}</td>
+        <td>${escapeHtml(truck?.plateNumber || "—")}</td>
+        <td>${escapeHtml(doc.containerNumber || "—")}</td>
+        <td>${escapeHtml(doc.destination || "—")}</td>
+        <td class="statement-number">${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+        <td class="statement-number">${vat.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+        <td class="statement-number">${(amount + vat).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+      </tr>`;
+  }).join("");
+
+  const subtotal = docs.reduce((sum, doc) => sum + Number(doc.clientRate || 0), 0);
+  const vat = Number((subtotal * 0.15).toFixed(2));
+  const total = subtotal + vat;
+
+  area.innerHTML = `
+    <div class="statement-sheet">
+      <div class="statement-header">
+        <div><img src="assets/north-world-logo.jpeg" alt="North World"><strong>عالم الشمال للنقل البري</strong><span>North World Transport</span></div>
+        <div class="statement-meta"><strong>كشف تفصيلي</strong><span>DETAILED STATEMENT</span><small>التاريخ: ${formatDate(dateOnly())}</small></div>
+      </div>
+      <div class="statement-company">
+        <span>الشركة</span><strong>${escapeHtml(docs[0]?.customerName || "جميع الشركات")}</strong>
+      </div>
+      <table class="statement-table">
+        <thead><tr><th>#</th><th>التاريخ</th><th>رقم الوثيقة / البيان</th><th>السيارة</th><th>الحاوية</th><th>الوجهة</th><th>المبلغ</th><th>الضريبة 15%</th><th>الإجمالي</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="9" class="empty-cell">لا توجد عمليات مطابقة للفلاتر</td></tr>'}</tbody>
+      </table>
+      <div class="statement-totals">
+        <div><span>الإجمالي قبل الضريبة</span><strong>${subtotal.toLocaleString("en-US", { minimumFractionDigits: 2 })} ر.س</strong></div>
+        <div><span>ضريبة القيمة المضافة</span><strong>${vat.toLocaleString("en-US", { minimumFractionDigits: 2 })} ر.س</strong></div>
+        <div class="statement-grand"><span>الإجمالي النهائي</span><strong>${total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ر.س</strong></div>
+      </div>
+      <div class="statement-signatures"><div><span>المحاسب</span></div><div><span>مدير الحسابات</span></div><div><span>الختم والتوقيع</span></div></div>
+    </div>`;
 }
 
 function updateAccountRoleFields() {
@@ -3157,11 +3216,15 @@ async function exportExcel() {
   const params = new URLSearchParams();
   const from = $("#filter-from").value;
   const to = $("#filter-to").value;
+  const clearanceFrom = $("#filter-clearance-from")?.value || "";
+  const clearanceTo = $("#filter-clearance-to")?.value || "";
   const port = $("#filter-port").value;
   const customer = $("#filter-customer").value.trim();
   const returnStatus = $("#filter-return").value;
   if (from) params.set("from", from);
   if (to) params.set("to", to);
+  if (clearanceFrom) params.set("clearanceFrom", clearanceFrom);
+  if (clearanceTo) params.set("clearanceTo", clearanceTo);
   if (port) params.set("port", port);
   if (customer) params.set("customer", customer);
   if (returnStatus) params.set("returnStatus", returnStatus);
@@ -3513,6 +3576,8 @@ async function handleTripExpenseEditSubmit(event) {
 function clearReportFilters() {
   $("#filter-from").value = "";
   $("#filter-to").value = "";
+  if ($("#filter-clearance-from")) $("#filter-clearance-from").value = "";
+  if ($("#filter-clearance-to")) $("#filter-clearance-to").value = "";
   $("#filter-port").value = "";
   $("#filter-customer").value = "";
   $("#filter-return").value = "";
@@ -3520,8 +3585,92 @@ function clearReportFilters() {
 }
 
 // ==========================================
-// TARIFFS, DOMESTIC TRIPS & INVOICES MODULE
+// COMPANIES, TARIFFS, DOMESTIC TRIPS & INVOICES MODULE
 // ==========================================
+
+let editingCompanyId = null;
+
+function renderCompanies(query = "") {
+  const tbody = $("#company-rows");
+  if (!tbody) return;
+  const q = String(query ?? $("#company-search")?.value ?? "").trim().toLowerCase();
+  const companies = (state.customers || []).filter(company =>
+    !q || [company.name, company.taxNumber, company.commercialRegistration, company.city]
+      .some(value => String(value || "").toLowerCase().includes(q))
+  );
+  if ($("#company-count")) $("#company-count").textContent = companies.length;
+  if ($("#company-empty")) $("#company-empty").classList.toggle("hidden", companies.length > 0);
+  tbody.innerHTML = companies.map(company => `
+    <tr>
+      <td><strong>${escapeHtml(company.name)}</strong></td>
+      <td>${escapeHtml(company.taxNumber || "—")}</td>
+      <td>${escapeHtml(company.commercialRegistration || "—")}</td>
+      <td>${escapeHtml(company.city || "—")}<br>${escapeHtml(company.district || "—")}</td>
+      <td>${escapeHtml(company.phone || "—")}<br>${escapeHtml(company.email || "—")}</td>
+      <td>
+        <button class="button button-light button-small" data-action="edit-company" data-id="${escapeHtml(company.id)}">تعديل</button>
+        <button class="button button-danger button-small" data-action="delete-company" data-id="${escapeHtml(company.id)}">حذف</button>
+      </td>
+    </tr>`).join("");
+}
+
+function resetCompanyForm() {
+  editingCompanyId = null;
+  const form = $("#company-form");
+  if (!form) return;
+  form.reset();
+  $("#company-edit-id").value = "";
+  $("#company-submit-button").textContent = "حفظ الشركة";
+  $("#cancel-company-edit").classList.add("hidden");
+  $("#company-form-wrap").classList.add("hidden");
+}
+
+function editCompany(companyId) {
+  const company = (state.customers || []).find(item => item.id === companyId);
+  if (!company) return;
+  editingCompanyId = companyId;
+  const form = $("#company-form");
+  Object.entries(company).forEach(([key, value]) => {
+    if (form.elements[key]) form.elements[key].value = value || "";
+  });
+  $("#company-edit-id").value = companyId;
+  $("#company-submit-button").textContent = "حفظ تعديلات الشركة";
+  $("#cancel-company-edit").classList.remove("hidden");
+  $("#company-form-wrap").classList.remove("hidden");
+  $("#company-form-wrap").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function handleCompanySubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  delete data.id;
+  try {
+    const wasEditing = Boolean(editingCompanyId);
+    await apiRequest(editingCompanyId ? `/api/customers/${encodeURIComponent(editingCompanyId)}` : "/api/customers", {
+      method: editingCompanyId ? "PUT" : "POST",
+      body: data
+    });
+    resetCompanyForm();
+    await refreshServerState();
+    showToast(wasEditing ? "تم تحديث بيانات الشركة." : "تمت إضافة الشركة.");
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function deleteCompany(companyId) {
+  const company = (state.customers || []).find(item => item.id === companyId);
+  if (!company) return;
+  if (!confirm(`هل تريد حذف الشركة ${company.name}؟`)) return;
+  try {
+    await apiRequest(`/api/customers/${encodeURIComponent(companyId)}`, { method: "DELETE" });
+    await refreshServerState();
+    showToast("تم حذف الشركة.");
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
 
 function populateCustomerDatalist() {
   const datalist = $("#customer-list");
@@ -4107,32 +4256,34 @@ function openPrintableInvoice(invoiceId) {
       <div class="inv-brand">
         <img class="inv-brand-logo" src="assets/north-world-logo.jpeg" alt="North World Logo">
         <div>
-          <h1 class="inv-company-name">عَالَمُ الشَّمَالِ لإدارة النقل</h1>
-          <p class="inv-company-subtitle">North World Transport Management</p>
-          <div class="inv-tax-number">الرقم الضريبي: <strong>310245896300003</strong></div>
+          <h1 class="inv-company-name">عَالَمُ الشَّمَالِ للنقل البري</h1>
+          <p class="inv-company-subtitle">NORTH WORLD TRANSPORT</p>
+          <div class="inv-tax-number">الرقم الضريبي / VAT: <strong>310245896300003</strong></div>
         </div>
       </div>
       <div class="inv-meta">
-        <h2 class="inv-title">فاتورة ضريبية</h2>
-        <div class="inv-badge status-pill status-invoiced">Tax Invoice</div>
-        <div>رقم الفاتورة: <strong>${escapeHtml(inv.invoiceNumber)}</strong></div>
-        <div>تاريخ الإصدار: <strong>${formatDate(inv.issueDate)}</strong></div>
-        <div>الحالة: <strong>${inv.status === "PAID" ? "مسددة" : "صادرة"}</strong></div>
+        <h2 class="inv-title">فاتورة ضريبية | Tax Invoice</h2>
+        <div>Invoice No. / رقم الفاتورة: <strong>${escapeHtml(inv.invoiceNumber)}</strong></div>
+        <div>Invoice Date / تاريخ الفاتورة: <strong>${formatDate(inv.issueDate)}</strong></div>
+        <div>Status / الحالة: <strong>${inv.status === "PAID" ? "مدفوعة / PAID" : "صادرة / ISSUED"}</strong></div>
       </div>
     </div>
 
     <div class="inv-parties">
-      <div>
-        <div class="party-title">الشركة الموردة (الناقل)</div>
+      <div class="inv-party supplier-party">
+        <div class="party-title">معلومات المورد | Supplier</div>
         <div class="party-name">مؤسسة عالم الشمال للنقل البري</div>
+        <div>North World Transport Est.</div>
         <div>المملكة العربية السعودية — الرياض</div>
-        <div>هاتف: 0500000000 | البريد: info@northworld.sa</div>
+        <div>VAT: 310245896300003</div>
       </div>
-      <div>
-        <div class="party-title">بيانات العميل المستفيد</div>
+      <div class="inv-party customer-party">
+        <div class="party-title">معلومات العميل | Customer</div>
         <div class="party-name">${escapeHtml(inv.customerName)}</div>
-        <div>الرقم الضريبي للعميل: ${escapeHtml(inv.customerTaxNumber || "—")}</div>
-        <div>عدد عمليات النقل: ${inv.tripCount} رحلة</div>
+        <div>VAT / الرقم الضريبي: ${escapeHtml(inv.customerTaxNumber || "—")}</div>
+        <div>CR / السجل التجاري: ${escapeHtml(inv.customerCommercialRegistration || "—")}</div>
+        <div>${escapeHtml([inv.customerBuildingNumber, inv.customerStreet, inv.customerDistrict, inv.customerCity, inv.customerPostalCode].filter(Boolean).join(" - ") || inv.customerAddress || "—")}</div>
+        <div>${escapeHtml(inv.customerCountry || "Saudi Arabia")}</div>
       </div>
     </div>
 
@@ -4155,6 +4306,10 @@ function openPrintableInvoice(invoiceId) {
     </table>
 
     <div class="inv-totals-box">
+      <div class="inv-qr-block">
+        <div class="inv-qr-placeholder">QR</div>
+        <small>رمز الفاتورة الضريبية</small>
+      </div>
       <table class="inv-totals-table">
         <tr>
           <td>المجموع قبل الضريبة:</td>
@@ -4285,6 +4440,8 @@ function init() {
     if (action.dataset.action === "delete-domestic-trip") deleteDomesticTrip(action.dataset.id);
     if (action.dataset.action === "edit-tariff") editTariff(action.dataset.id);
     if (action.dataset.action === "delete-tariff") deleteTariff(action.dataset.id);
+    if (action.dataset.action === "edit-company") editCompany(action.dataset.id);
+    if (action.dataset.action === "delete-company") deleteCompany(action.dataset.id);
     if (action.dataset.action === "print-invoice") openPrintableInvoice(action.dataset.id);
     if (action.dataset.action === "invoice-paid") updateInvoiceStatus(action.dataset.id, "PAID");
     if (action.dataset.action === "invoice-cancel") updateInvoiceStatus(action.dataset.id, "CANCELLED");
@@ -4436,7 +4593,7 @@ function init() {
   $("#account-role").addEventListener("change", updateAccountRoleFields);
   $("#account-form").addEventListener("submit", handleAccountSubmit);
   $("#cancel-account-edit").addEventListener("click", cancelAccountEdit);
-  ["filter-from", "filter-to", "filter-port", "filter-customer", "filter-return"].forEach(id => {
+  ["filter-from", "filter-to", "filter-clearance-from", "filter-clearance-to", "filter-port", "filter-customer", "filter-return"].forEach(id => {
     $(`#${id}`).addEventListener("input", renderReports);
     $(`#${id}`).addEventListener("change", renderReports);
   });
@@ -4457,6 +4614,19 @@ function init() {
   $("#domestic-filter")?.addEventListener("input", event => renderDomesticTrips(event.target.value));
   $("#domestic-driver")?.addEventListener("change", () => syncDomesticTruckDriver("driver"));
   $("#domestic-truck")?.addEventListener("change", () => syncDomesticTruckDriver("truck"));
+
+  $("#toggle-company-form")?.addEventListener("click", () => {
+    resetCompanyForm();
+    $("#company-form-wrap")?.classList.remove("hidden");
+  });
+  $("#cancel-company-edit")?.addEventListener("click", resetCompanyForm);
+  $("#company-form")?.addEventListener("submit", handleCompanySubmit);
+  $("#company-search")?.addEventListener("input", event => renderCompanies(event.target.value));
+  $("#print-detailed-statement")?.addEventListener("click", () => {
+    document.body.classList.add("printing-statement");
+    window.print();
+    setTimeout(() => document.body.classList.remove("printing-statement"), 100);
+  });
 
   // Tariff auto-lookup on Port issue form
   $("#issue-customer")?.addEventListener("input", autoLookupIssueTariff);

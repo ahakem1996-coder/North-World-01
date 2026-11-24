@@ -391,6 +391,15 @@ function mapInvoice(inv) {
     customerId: inv.customerId,
     customerName: inv.customer?.name || "",
     customerTaxNumber: inv.customer?.taxNumber || "",
+    customerCommercialRegistration: inv.customer?.commercialRegistration || "",
+    customerAddress: inv.customer?.address || "",
+    customerStreet: inv.customer?.street || "",
+    customerCity: inv.customer?.city || "",
+    customerDistrict: inv.customer?.district || "",
+    customerCountry: inv.customer?.country || "",
+    customerBuildingNumber: inv.customer?.buildingNumber || "",
+    customerPostalCode: inv.customer?.postalCode || "",
+    customerAdditionalAddress: inv.customer?.additionalAddress || "",
     issueDate: inv.issueDate.toISOString().slice(0, 10),
     dueDate: inv.dueDate ? inv.dueDate.toISOString().slice(0, 10) : "",
     status: inv.status,
@@ -499,7 +508,22 @@ async function getAppState(req) {
       orderBy: { issueDate: "desc" }
     }),
     isDriver ? Promise.resolve([]) : prisma.customer.findMany({
-      select: { id: true, name: true, phone: true, email: true, address: true, taxNumber: true },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        address: true,
+        taxNumber: true,
+        commercialRegistration: true,
+        street: true,
+        city: true,
+        district: true,
+        country: true,
+        buildingNumber: true,
+        postalCode: true,
+        additionalAddress: true
+      },
       orderBy: { name: "asc" }
     })
   ]);
@@ -1788,6 +1812,65 @@ router.delete("/trips/domestic/:id", requireAdmin, async (req, res) => {
   res.json({ id: req.params.id });
 });
 
+const customerSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  phone: z.string().trim().max(32).optional().default(""),
+  email: z.string().trim().max(160).optional().default(""),
+  address: z.string().trim().max(240).optional().default(""),
+  taxNumber: z.string().trim().max(64).optional().default(""),
+  commercialRegistration: z.string().trim().max(64).optional().default(""),
+  street: z.string().trim().max(160).optional().default(""),
+  city: z.string().trim().max(120).optional().default(""),
+  district: z.string().trim().max(120).optional().default(""),
+  country: z.string().trim().max(120).optional().default(""),
+  buildingNumber: z.string().trim().max(32).optional().default(""),
+  postalCode: z.string().trim().max(32).optional().default(""),
+  additionalAddress: z.string().trim().max(240).optional().default("")
+});
+
+router.get("/customers", requireAdmin, async (req, res) => {
+  const customers = await prisma.customer.findMany({ orderBy: { name: "asc" } });
+  res.json(customers);
+});
+
+router.post("/customers", requireAdmin, async (req, res) => {
+  const parsed = customerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_customer_input" });
+  try {
+    const customer = await prisma.customer.create({ data: parsed.data });
+    await writeAudit(prisma, req, "customer.created", "Customer", customer.id, { name: customer.name });
+    res.status(201).json(customer);
+  } catch (error) {
+    if (error?.code === "P2002") throw Object.assign(new Error("customer_name_exists"), { statusCode: 409, publicCode: "customer_name_exists" });
+    throw error;
+  }
+});
+
+router.put("/customers/:id", requireAdmin, async (req, res) => {
+  const parsed = customerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_customer_input" });
+  try {
+    const customer = await prisma.customer.update({ where: { id: req.params.id }, data: parsed.data });
+    await writeAudit(prisma, req, "customer.updated", "Customer", customer.id, { name: customer.name });
+    res.json(customer);
+  } catch (error) {
+    if (error?.code === "P2002") throw Object.assign(new Error("customer_name_exists"), { statusCode: 409, publicCode: "customer_name_exists" });
+    throw error;
+  }
+});
+
+router.delete("/customers/:id", requireAdmin, async (req, res) => {
+  const linked = await prisma.customer.count({
+    where: {
+      id: req.params.id,
+      OR: [{ trips: { some: {} } }, { invoices: { some: {} } }, { rates: { some: {} } }]
+    }
+  });
+  if (linked) throw Object.assign(new Error("customer_in_use"), { statusCode: 409, publicCode: "customer_in_use" });
+  await prisma.customer.delete({ where: { id: req.params.id } });
+  res.json({ success: true });
+});
+
 router.get("/tariffs", requireAdmin, async (req, res) => {
   const customerId = req.query.customerId ? String(req.query.customerId) : undefined;
   const tariffs = await prisma.companyRate.findMany({
@@ -2473,6 +2556,8 @@ router.get("/reports.xlsx", requireAdmin, async (req, res) => {
   const filtersSchema = z.object({
     from: z.string().date().optional(),
     to: z.string().date().optional(),
+    clearanceFrom: z.string().date().optional(),
+    clearanceTo: z.string().date().optional(),
     port: z.string().trim().max(120).optional(),
     customer: z.string().trim().max(160).optional(),
     returnStatus: z.enum(["returned", "active", "overdue", "soon"]).optional()
@@ -2486,6 +2571,14 @@ router.get("/reports.xlsx", requireAdmin, async (req, res) => {
       operationAt: {
         ...(filters.from ? { gte: new Date(`${filters.from}T00:00:00.000Z`) } : {}),
         ...(filters.to ? { lte: new Date(`${filters.to}T23:59:59.999Z`) } : {})
+      }
+    } : {}),
+    ...(filters.clearanceFrom || filters.clearanceTo ? {
+      customsClearance: {
+        clearedAt: {
+          ...(filters.clearanceFrom ? { gte: new Date(`${filters.clearanceFrom}T00:00:00.000Z`) } : {}),
+          ...(filters.clearanceTo ? { lte: new Date(`${filters.clearanceTo}T23:59:59.999Z`) } : {})
+        }
       }
     } : {}),
     ...(filters.port ? { port: { name: filters.port } } : {}),

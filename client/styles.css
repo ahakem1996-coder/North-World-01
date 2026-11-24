@@ -494,6 +494,17 @@ tbody tr:hover { background: #fbfcfe; }
 }
 
 @media print {
+  body.printing-statement * {
+    visibility: hidden;
+  }
+  body.printing-statement .detailed-statement,
+  body.printing-statement .detailed-statement * {
+    visibility: visible;
+  }
+  body.printing-statement .detailed-statement {
+    position: absolute;
+    inset: 0;
+  }
   body { color: #111; background: #fff; }
   .sidebar, .topbar, .footer, .toast, .button, .icon-button { display: none !important; }
   .workspace { margin: 0; }
@@ -833,6 +844,137 @@ html[dir="ltr"] .inv-table th {
 .inv-signature-line {
   height: 50px;
   border-bottom: 1px solid #0f2c4a;
+}
+
+.inv-party {
+  min-height: 132px;
+}
+
+.inv-qr-block {
+  width: 120px;
+  text-align: center;
+  color: #64748b;
+  margin-left: 20px;
+}
+
+.inv-qr-placeholder {
+  width: 92px;
+  height: 92px;
+  margin: 0 auto 6px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #17324d;
+  font-weight: 800;
+  color: #17324d;
+}
+
+.statement-sheet {
+  direction: rtl;
+  background: #fff;
+  border: 1px solid #dbe3ec;
+  padding: 24px;
+  color: #17283d;
+}
+
+.statement-header,
+.statement-signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  gap: 16px;
+}
+
+.statement-header {
+  border-bottom: 3px solid #17324d;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.statement-header > div:first-child {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  column-gap: 10px;
+}
+
+.statement-header img {
+  grid-row: 1 / 4;
+  width: 54px;
+  height: 54px;
+  object-fit: cover;
+}
+
+.statement-header span,
+.statement-header small {
+  display: block;
+  color: #64748b;
+}
+
+.statement-meta {
+  grid-column: 3;
+  text-align: left;
+}
+
+.statement-company {
+  background: #f4f7fb;
+  border: 1px solid #dbe3ec;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  gap: 12px;
+}
+
+.statement-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.statement-table th,
+.statement-table td {
+  border: 1px solid #cbd5e1;
+  padding: 7px;
+  text-align: center;
+}
+
+.statement-table th {
+  background: #17324d;
+  color: #fff;
+}
+
+.statement-number {
+  direction: ltr;
+  text-align: left !important;
+  font-weight: 700;
+}
+
+.statement-totals {
+  width: 330px;
+  margin: 14px 0 14px auto;
+  border: 1px solid #dbe3ec;
+}
+
+.statement-totals div {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+}
+
+.statement-totals .statement-grand {
+  background: #eef6f1;
+  border-top: 2px solid #168463;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.statement-signatures {
+  margin-top: 28px;
+}
+
+.statement-signatures div {
+  height: 70px;
+  border-top: 1px solid #17324d;
+  text-align: center;
+  padding-top: 8px;
   margin-bottom: 6px;
 }
 

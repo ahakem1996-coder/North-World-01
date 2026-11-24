@@ -71,6 +71,7 @@
             <button class="nav-link" data-view="tariffs"><span class="nav-icon">🏷</span>أسعار الشركات</button>
             <button class="nav-link" data-view="invoices"><span class="nav-icon">🧾</span>الفواتير والحسابات</button>
             <button class="nav-link" data-view="expenses"><span class="nav-icon">﷼</span>تكاليف الرحلات</button>
+            <button class="nav-link" data-view="companies"><span class="nav-icon">▦</span>معلومات الشركات</button>
           </div>
         </div>
         <button class="nav-link" data-view="fleet"><span class="nav-icon">▰</span>الأسطول والسائقون</button>
@@ -80,7 +81,7 @@
           </button>
           <div class="nav-group-items">
             <button class="nav-link" data-view="archive"><span class="nav-icon">▣</span>أرشيف الوثائق</button>
-            <button class="nav-link" data-view="reports"><span class="nav-icon">▥</span>التقارير والتصدير</button>
+            <button class="nav-link" data-view="reports"><span class="nav-icon">▥</span>سجل العمليات</button>
           </div>
         </div>
         <button id="admin-accounts-link" class="nav-link hidden" data-view="accounts"><span class="nav-icon">♙</span>حسابات المستخدمين</button>
@@ -320,6 +321,40 @@
               <strong>لا توجد رحلات نقل داخلي مسجلة</strong>
               <p>يمكنك تسجيل أول رحلة نقل داخلي الآن وإرسالها للسائق.</p>
             </div>
+          </section>
+        </section>
+
+        <section class="view" id="view-companies">
+          <div class="page-heading">
+            <div><span class="eyebrow">بيانات الفوترة</span><h1>معلومات الشركات</h1><p>سجل الشركات وعناوينها والأرقام الضريبية والسجل التجاري للاستخدام في الفواتير والتعاقدات.</p></div>
+            <button id="toggle-company-form" class="button button-primary" type="button">＋ إضافة شركة</button>
+          </div>
+          <div id="company-form-wrap" class="panel inline-form-wrap hidden">
+            <form id="company-form" class="inline-form">
+              <input type="hidden" name="id" id="company-edit-id">
+              <label class="field">اسم الشركة<input name="name" required maxlength="160"></label>
+              <label class="field">الرقم الضريبي<input name="taxNumber" maxlength="64"></label>
+              <label class="field">السجل التجاري<input name="commercialRegistration" maxlength="64"></label>
+              <label class="field">رقم الهاتف<input name="phone" maxlength="32"></label>
+              <label class="field">البريد الإلكتروني<input name="email" type="email" maxlength="160"></label>
+              <label class="field">العنوان المختصر<input name="address" maxlength="240"></label>
+              <label class="field">الشارع<input name="street" maxlength="160"></label>
+              <label class="field">المدينة<input name="city" maxlength="120"></label>
+              <label class="field">الحي<input name="district" maxlength="120"></label>
+              <label class="field">الدولة<input name="country" maxlength="120"></label>
+              <label class="field">رقم المبنى<input name="buildingNumber" maxlength="32"></label>
+              <label class="field">الرمز البريدي<input name="postalCode" maxlength="32"></label>
+              <label class="field full-field">عنوان إضافي<input name="additionalAddress" maxlength="240"></label>
+              <div class="inline-form-actions full-field">
+                <button id="company-submit-button" class="button button-primary" type="submit">حفظ الشركة</button>
+                <button id="cancel-company-edit" class="button button-light" type="button">إلغاء</button>
+              </div>
+            </form>
+          </div>
+          <section class="panel">
+            <div class="panel-heading"><div><h2>قائمة الشركات المسجلة</h2><p><span id="company-count">0</span> شركة</p></div><label class="compact-search"><span>⌕</span><input id="company-search" type="search" placeholder="ابحث باسم الشركة أو الرقم الضريبي"></label></div>
+            <div class="table-scroll"><table><thead><tr><th>الشركة</th><th>الرقم الضريبي</th><th>السجل التجاري</th><th>المدينة / الحي</th><th>الهاتف / البريد</th><th>إجراءات</th></tr></thead><tbody id="company-rows"></tbody></table></div>
+            <div id="company-empty" class="empty-state hidden"><span>▦</span><strong>لا توجد شركات مسجلة</strong><p>أضف بيانات أول شركة لتظهر في الفواتير والتعريفات.</p></div>
           </section>
         </section>
 
@@ -575,9 +610,13 @@
         </section>
 
         <section class="view" id="view-reports">
-          <div class="page-heading"><div><span class="eyebrow">تحليل العمليات</span><h1>التقارير والتصدير</h1><p>تصفية تفاصيل الفسح ووثائق النقل وعودة الحاويات الفارغة.</p></div><button id="export-excel" class="button button-green"><span>⇩</span> تصدير إلى Excel</button></div>
-          <section class="panel filters-panel"><div class="filters-grid"><label class="field">من تاريخ<input id="filter-from" type="date"></label><label class="field">إلى تاريخ<input id="filter-to" type="date"></label><label class="field">الميناء<select id="filter-port"><option value="">كل الموانئ</option></select></label><label class="field">الشركة<input id="filter-customer" placeholder="اسم الشركة"></label><label class="field">حالة عودة الفارغ<select id="filter-return"><option value="">كل الحالات</option><option value="returned">تمت الإعادة</option><option value="soon">تقترب المهلة</option><option value="overdue">متأخرة</option><option value="active">ضمن المهلة</option></select></label><button id="clear-filters" class="button button-light">مسح الفلاتر</button></div></section>
+          <div class="page-heading"><div><span class="eyebrow">تحليل العمليات</span><h1>سجل العمليات</h1><p>تصفية تفاصيل الفسح ووثائق النقل وعودة الحاويات الفارغة.</p></div><button id="export-excel" class="button button-green"><span>⇩</span> تصدير إلى Excel</button></div>
+          <section class="panel filters-panel"><div class="filters-grid"><label class="field">من تاريخ العملية<input id="filter-from" type="date"></label><label class="field">إلى تاريخ العملية<input id="filter-to" type="date"></label><label class="field">من تاريخ الفسح<input id="filter-clearance-from" type="date"></label><label class="field">إلى تاريخ الفسح<input id="filter-clearance-to" type="date"></label><label class="field">الميناء<select id="filter-port"><option value="">كل الموانئ</option></select></label><label class="field">الشركة<input id="filter-customer" placeholder="اسم الشركة"></label><label class="field">حالة عودة الفارغ<select id="filter-return"><option value="">كل الحالات</option><option value="returned">تمت الإعادة</option><option value="soon">تقترب المهلة</option><option value="overdue">متأخرة</option><option value="active">ضمن المهلة</option></select></label><button id="clear-filters" class="button button-light">مسح الفلاتر</button></div></section>
           <section class="panel report-panel"><div class="panel-heading"><div><h2>سجل العمليات</h2><p id="report-count">0 عملية</p></div><span class="report-hint">تُحدّث النتائج تلقائياً حسب الفلاتر</span></div><div class="table-scroll report-scroll"><table class="report-table"><thead><tr><th>تاريخ العملية / الفسح</th><th>الشركة المستلمة</th><th>السائق وبياناته</th><th>وثيقة بيان</th><th>الشاحنة</th><th>الحاوية والتفاصيل</th><th>المسار</th><th>عودة الفارغ / EIR</th></tr></thead><tbody id="report-rows"></tbody></table></div><div id="report-empty" class="empty-state hidden"><span>⌕</span><strong>لا توجد نتائج مطابقة</strong><p>جرّب تغيير الفلاتر أو مسحها.</p></div></section>
+          <section class="panel detailed-statement-panel">
+            <div class="panel-heading"><div><h2>الكشف التفصيلي</h2><p>كشف حساب مجمع للرحلات والضرائب مطابق لتقرير شركة وساع الشرق.</p></div><button id="print-detailed-statement" class="button button-primary" type="button">🖨 طباعة الكشف التفصيلي</button></div>
+            <div id="detailed-statement-area" class="detailed-statement"></div>
+          </section>
         </section>
 
         <section class="view" id="view-accounts">
