@@ -4231,27 +4231,32 @@ function openPrintableInvoice(invoiceId) {
   if (!printArea) return;
 
   const trips = inv.trips || [];
+  const taxRate = Number(inv.taxRate || 15);
   const rowsHtml = trips.map((trip, idx) => {
     const tripTypeLabel = trip.tripType === "DOMESTIC" ? "نقل داخلي" : "نقل ميناء";
     const refNumber = trip.declarationNumber || trip.cargoWaybillNumber || trip.documentNumber || "—";
     const cargoLabel = trip.containerNumber || trip.cargoDescription || "—";
     const rateVal = trip.clientRate ? Number(trip.clientRate) : 0;
+    const lineVat = Number((rateVal * taxRate / 100).toFixed(2));
+    const description = `${tripTypeLabel} - ${escapeHtml(refNumber)} - ${escapeHtml(cargoLabel)} - ${escapeHtml(trip.origin || "—")} إلى ${escapeHtml(trip.destination || "—")}`;
 
     return `
       <tr>
         <td style="text-align: center;">${idx + 1}</td>
-        <td>${formatDate(trip.issuedAt)}</td>
-        <td>${tripTypeLabel}</td>
-        <td>${escapeHtml(refNumber)}</td>
-        <td>${escapeHtml(cargoLabel)}</td>
-        <td>${escapeHtml(trip.origin || "—")} ← ${escapeHtml(trip.destination || "—")}</td>
-        <td>${escapeHtml(trip.truckPlateNumber || "—")}</td>
-        <td style="text-align: left; font-weight: 700;">${rateVal.toLocaleString("en-US", { minimumFractionDigits: 2 })} ر.س</td>
+        <td>${description}</td>
+        <td class="inv-number">رحلة</td>
+        <td class="inv-number">1</td>
+        <td class="inv-number">${rateVal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+        <td class="inv-number">${rateVal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+        <td class="inv-number">${taxRate.toFixed(0)}%</td>
+        <td class="inv-number">${lineVat.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+        <td class="inv-number">${(rateVal + lineVat).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
       </tr>
     `;
   }).join("");
 
   printArea.innerHTML = `
+    <div class="inv-print-sheet">
     <div class="inv-header">
       <div class="inv-brand">
         <img class="inv-brand-logo" src="assets/north-world-logo.jpeg" alt="North World Logo">
@@ -4291,13 +4296,14 @@ function openPrintableInvoice(invoiceId) {
       <thead>
         <tr>
           <th style="width: 40px; text-align: center;">#</th>
-          <th>تاريخ الرحلة</th>
-          <th>نوع النقل</th>
-          <th>البيان / البوليصة</th>
-          <th>الحاوية / الشحنة</th>
-          <th>المسار (من ← إلى)</th>
-          <th>رقم السيارة</th>
-          <th style="text-align: left;">المبلغ (ريال)</th>
+        <th>البيان / Description</th>
+        <th>الوحدة / Unit</th>
+        <th>الكمية / Qty</th>
+        <th>السعر / Price</th>
+        <th>الإجمالي دون الضريبة</th>
+        <th>نسبة الضريبة</th>
+        <th>مبلغ الضريبة</th>
+        <th>الإجمالي شامل الضريبة</th>
         </tr>
       </thead>
       <tbody>
@@ -4338,6 +4344,7 @@ function openPrintableInvoice(invoiceId) {
         <div class="inv-signature-line"></div>
         <div>الختم والتوقيع المعتمد</div>
       </div>
+    </div>
     </div>
   `;
 
@@ -4626,6 +4633,9 @@ function init() {
     document.body.classList.add("printing-statement");
     window.print();
     setTimeout(() => document.body.classList.remove("printing-statement"), 100);
+  });
+  window.addEventListener("afterprint", () => {
+    document.body.classList.remove("printing-statement");
   });
 
   // Tariff auto-lookup on Port issue form
