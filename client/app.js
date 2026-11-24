@@ -50,6 +50,8 @@ const TRANSLATIONS = Object.freeze({
   "تم تحرير الشاحنة": "Truck released",
   "من تاريخ العملية": "From operation date",
   "إلى تاريخ العملية": "To operation date",
+  "من تاريخ الفسح": "From clearance date",
+  "إلى تاريخ الفسح": "To clearance date",
   "ابحث باسم الشركة": "Search by company",
   "ترتيب العمليات": "Operation order",
   "الأقدم إلى الأحدث": "Oldest to newest",
@@ -2388,10 +2390,15 @@ function getFilteredArchiveDocs(query = "") {
   const term = String(query || "").trim().toLowerCase();
   const from = $("#archive-from").value;
   const to = $("#archive-to").value;
+  const clearanceFrom = $("#archive-clearance-from").value;
+  const clearanceTo = $("#archive-clearance-to").value;
   const customer = $("#archive-customer").value.trim().toLowerCase();
   return sortArchiveDocs(state.docs.filter(doc => {
     const operationDate = String(doc.issuedAt || "").slice(0, 10);
+    const clearanceDate = String(doc.clearanceDate || "");
     if ((from && operationDate < from) || (to && operationDate > to)) return false;
+    if ((clearanceFrom && (!clearanceDate || clearanceDate < clearanceFrom)) ||
+        (clearanceTo && (!clearanceDate || clearanceDate > clearanceTo))) return false;
     if (customer && !String(doc.customerName || "").toLowerCase().includes(customer)) return false;
     const truck = truckForTrip(doc);
     return [doc.documentNumber, doc.declarationNumber, doc.containerNumber, truck?.plateNumber, doc.customerName]
@@ -4264,7 +4271,7 @@ function init() {
   $("#tracking-filter").addEventListener("change", renderTripTracking);
   $("#refresh-tracking").addEventListener("click", () => refreshTracking(true));
   $("#archive-query").addEventListener("input", event => renderArchive(event.target.value));
-  ["archive-from", "archive-to", "archive-customer", "archive-sort"].forEach(id => {
+  ["archive-from", "archive-to", "archive-clearance-from", "archive-clearance-to", "archive-customer", "archive-sort"].forEach(id => {
     const eventName = id === "archive-customer" ? "input" : "change";
     $(`#${id}`).addEventListener(eventName, () => renderArchive($("#archive-query").value));
   });

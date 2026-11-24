@@ -307,6 +307,7 @@ function mapTrip(trip) {
     source: trip.transportDocument?.source || "INTERNAL_DRAFT",
     issuedAt: trip.transportDocument?.issuedAt?.toISOString().slice(0, 10) ||
       trip.operationAt.toISOString().slice(0, 10),
+    clearanceDate: trip.customsClearance?.clearedAt?.toISOString().slice(0, 10) || "",
     clearanceId: trip.customsClearanceId || null,
     declarationNumber: trip.customsClearance?.declarationNumber || (isDomestic ? "نقل خارجي" : null),
     containerNumber: trip.container?.containerNumber || trip.cargoDescription || (isDomestic ? "نقل داخلي" : null),
