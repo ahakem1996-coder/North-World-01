@@ -52,13 +52,20 @@
       <div class="sidebar-label">القائمة الرئيسية</div>
       <nav class="navigation" aria-label="القائمة الرئيسية">
         <button class="nav-link active" data-view="dashboard"><span class="nav-icon">⌂</span>لوحة التحكم</button>
-        <button class="nav-link" data-view="fasah"><span class="nav-icon">⌕</span>استعلام الفسح</button>
-        <button class="nav-link" data-view="issue"><span class="nav-icon">▤</span>إصدار وثيقة نقل</button>
-        <button class="nav-link" data-view="domestic"><span class="nav-icon">⇄</span>النقل الداخلي</button>
+        <div class="nav-group open" id="transport-nav-group">
+          <button class="nav-group-toggle" type="button" data-nav-group-toggle aria-expanded="true">
+            <span class="nav-icon">⇄</span><span class="nav-group-label">النقليات</span><span class="nav-group-chevron">⌄</span>
+          </button>
+          <div class="nav-group-items">
+            <button class="nav-link" data-view="fasah"><span class="nav-icon">⌕</span>استعلام الفسح</button>
+            <button class="nav-link" data-view="issue"><span class="nav-icon">▤</span>إصدار وثيقة نقل</button>
+            <button class="nav-link" data-view="domestic"><span class="nav-icon">⇄</span>النقل الداخلي</button>
+            <button class="nav-link" data-view="tracking"><span class="nav-icon">⌖</span>تتبع الرحلات</button>
+          </div>
+        </div>
         <button class="nav-link" data-view="tariffs"><span class="nav-icon">🏷</span>أسعار الشركات</button>
         <button class="nav-link" data-view="invoices"><span class="nav-icon">🧾</span>الفواتير والحسابات</button>
         <button class="nav-link" data-view="fleet"><span class="nav-icon">▰</span>الأسطول والسائقون</button>
-        <button class="nav-link" data-view="tracking"><span class="nav-icon">⌖</span>تتبع الرحلات</button>
         <button class="nav-link" data-view="expenses"><span class="nav-icon">﷼</span>تكاليف الرحلات</button>
         <button class="nav-link" data-view="archive"><span class="nav-icon">▣</span>أرشيف الوثائق</button>
         <button class="nav-link" data-view="reports"><span class="nav-icon">▥</span>التقارير والتصدير</button>

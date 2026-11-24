@@ -35,6 +35,14 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .brand small { display: block; margin-top: 4px; color: #8fa4b8; font-size: 11px; }
 .sidebar-label { padding: 9px 10px 11px; color: #758da4; font-size: 11px; }
 .navigation { display: grid; gap: 5px; }
+.nav-group { display: grid; gap: 4px; }
+.nav-group-toggle { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 11px; padding: 0 11px; border: 0; border-radius: 9px; color: #c2cfe0; background: #ffffff08; text-align: right; font-size: 13px; font-weight: 700; cursor: pointer; }
+.nav-group-toggle:hover { color: #fff; background: #ffffff10; }
+.nav-group-chevron { margin-right: auto; color: #91a8bc; transition: transform .18s ease; }
+.nav-group:not(.open) .nav-group-chevron { transform: rotate(-90deg); }
+.nav-group-items { display: grid; gap: 3px; padding-right: 9px; }
+.nav-group:not(.open) .nav-group-items { display: none; }
+.nav-group-items .nav-link { min-height: 40px; font-size: 12px; }
 .nav-link { min-height: 44px; display: flex; align-items: center; gap: 11px; padding: 0 11px; border: 0; border-radius: 9px; color: #aebdcb; background: transparent; text-align: right; font-size: 13px; transition: .18s ease; }
 .nav-link:hover { color: #fff; background: #ffffff10; }
 .nav-link.active { color: #fff; background: #ffffff17; box-shadow: inset -3px 0 #48c6a2; }
@@ -397,8 +405,12 @@ tbody tr:hover { background: #fbfcfe; }
 @media (max-width: 850px) {
   .sidebar { width: 68px; padding: 16px 9px; align-items: center; }
   .brand { padding: 0 0 22px; }
-  .brand > span, .sidebar-label, .nav-link:not(.active)::after, .nav-link .nav-badge, .nav-link { font-size: 0; }
+  .brand > span, .sidebar-label, .nav-link:not(.active)::after, .nav-link .nav-badge, .nav-link, .nav-group-label, .nav-group-chevron { font-size: 0; }
   .nav-link { width: 46px; height: 45px; min-height: 45px; justify-content: center; padding: 0; }
+  .nav-group { width: 46px; }
+  .nav-group-toggle { width: 46px; height: 45px; min-height: 45px; justify-content: center; padding: 0; }
+  .nav-group-items { width: 46px; padding-right: 0; }
+  .nav-group-items .nav-link { width: 46px; min-height: 45px; }
   .nav-link.active { font-size: 0; }
   .nav-icon { width: auto; font-size: 19px; }
   .sidebar-note { display: none; }

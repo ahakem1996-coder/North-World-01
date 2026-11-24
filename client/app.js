@@ -48,6 +48,7 @@ const TRANSLATIONS = Object.freeze({
   "لا يمكن إتمام رحلة مكتملة أو ملغاة.": "Completed or cancelled trips cannot be completed.",
   "ألغيت الرحلة": "Trip cancelled",
   "تم تحرير الشاحنة": "Truck released",
+  "النقليات": "Transport",
   "من تاريخ العملية": "From operation date",
   "إلى تاريخ العملية": "To operation date",
   "من تاريخ الفسح": "From clearance date",
@@ -1444,6 +1445,12 @@ function switchView(name) {
   if (!view) return;
   $$(".view").forEach(item => item.classList.toggle("active", item === view));
   $$(".nav-link").forEach(item => item.classList.toggle("active", item.dataset.view === name));
+  const transportGroup = $("#transport-nav-group");
+  if (transportGroup && ["fasah", "issue", "domestic", "tracking"].includes(name)) {
+    transportGroup.classList.add("open");
+    transportGroup.querySelector("[data-nav-group-toggle]")
+      ?.setAttribute("aria-expanded", "true");
+  }
   const titles = {
     dashboard: "لوحة التحكم",
     fasah: "استعلام الفسح",
@@ -4201,6 +4208,13 @@ function init() {
     const languageButton = event.target.closest("[data-language-toggle]");
     if (languageButton) {
       setLanguage(language === "ar" ? "en" : "ar");
+      return;
+    }
+    const navGroupToggle = event.target.closest("[data-nav-group-toggle]");
+    if (navGroupToggle) {
+      const group = navGroupToggle.closest(".nav-group");
+      const open = group.classList.toggle("open");
+      navGroupToggle.setAttribute("aria-expanded", String(open));
       return;
     }
     const driverTab = event.target.closest("[data-driver-tab]");
