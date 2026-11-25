@@ -39,7 +39,7 @@ Drivers can record fuel or maintenance expenses against accepted trips and attac
 
 The administrator's trip-tracking screen shows accepted trips, driver-reported milestones, and their timestamps. It refreshes every 30 seconds while open; it does not provide live GPS tracking.
 
-Administrators can use the separate PDF tools screen to merge local PDF files or split a PDF into selected page ranges. Processing happens in the browser using the `pdf-lib` browser bundle served by the application; document contents are not sent to the server.
+Administrators can use the separate PDF tools screen to merge local PDF files, split a PDF into selected page ranges, extract text from text-based PDFs into editable Word documents, or add a visible text overlay to a selected PDF page. PDF.js and `pdf-lib` browser assets are served by the application, and document contents are processed locally. Word conversion does not OCR scanned documents or preserve complex layouts, images, or tables. Text added to a PDF is embedded as a visible image overlay.
 
 The app is not yet deployed or connected to government APIs. The database starts empty; enter the company's real truck, driver, port, and account records before operations.
 

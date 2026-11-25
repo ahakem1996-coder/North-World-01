@@ -76,6 +76,39 @@ const TRANSLATIONS = Object.freeze({
   "تقسيم ملف PDF": "Split a PDF File",
   "حدّد نطاقاً أو أكثر، وسيُنشأ ملف مستقل لكل نطاق.": "Select one or more ranges to create a separate file for each range.",
   "ملف PDF": "PDF File",
+  "تحويل PDF إلى Word": "Convert PDF to Word",
+  "استخراج النصوص وإعداد مستند Word قابل للتحرير.": "Extract text and create an editable Word document.",
+  "يدعم ملفات PDF النصية. لا يحافظ على التنسيق المعقد أو الصور والجداول، ولا يتضمن OCR للمستندات الممسوحة.": "Supports text-based PDFs. Complex formatting, images, and tables are not preserved; scanned documents are not OCR-processed.",
+  "تحويل إلى Word": "Convert to Word",
+  "لا يوجد نص قابل للاستخراج في هذا الملف. قد يكون ممسوحاً ضوئياً أو محمياً.": "No extractable text was found. The file may be scanned or protected.",
+  "تعذر تحويل ملف PDF إلى Word. تأكد من سلامة الملف وحاول مجدداً.": "Could not convert the PDF to Word. Check that the file is valid and try again.",
+  "تم تحويل PDF وتنزيل مستند Word.": "The PDF was converted and the Word document was downloaded.",
+  "الكتابة على PDF": "Write on PDF",
+  "أضف نصاً إلى صفحة محددة وعاين موضعه قبل التنزيل.": "Add text to a selected page and preview its position before downloading.",
+  "معاينة صفحة PDF": "PDF page preview",
+  "اختر ملف PDF لمعاينة الصفحة.": "Choose a PDF file to preview a page.",
+  "رقم الصفحة": "Page number",
+  "من اليسار (%)": "From left (%)",
+  "من الأعلى (%)": "From top (%)",
+  "حجم الخط (pt)": "Font size (pt)",
+  "لون الكتابة": "Text color",
+  "النص": "Text",
+  "اكتب النص المراد إضافته": "Enter the text to add",
+  "انقر على المعاينة لتحديد الموضع. سيُضاف النص كطبقة مرئية؛ وقد يكون النص المضاف صورة غير قابلة للتحديد أو التحرير.": "Click the preview to set the position. Text is added as a visible overlay and may be an image that cannot be selected or edited.",
+  "إضافة الكتابة وتنزيل PDF": "Add Text and Download PDF",
+  "تعذر تحميل ملف PDF للمعاينة. تحقق من سلامة الملف.": "Could not load the PDF preview. Check that the file is valid.",
+  "اختر رقم صفحة صحيحاً ضمن عدد صفحات الملف.": "Choose a valid page number within the document.",
+  "النص يتجاوز حدود الصفحة، غيّر موضعه أو حجم الخط.": "The text extends beyond the page. Change its position or font size.",
+  "تعذر إضافة النص إلى ملف PDF. تحقق من الملف والموضع وحاول مجدداً.": "Could not add text to the PDF. Check the file and position, then try again.",
+  "تمت إضافة النص وتنزيل ملف PDF.": "Text was added and the PDF was downloaded.",
+  "جارٍ استخراج النصوص من ملف PDF...": "Extracting text from the PDF...",
+  "جارٍ تجهيز ملف Word...": "Preparing the Word document...",
+  "جارٍ تحميل مكتبة PDF ومعاينة الصفحة...": "Loading the PDF library and previewing the page...",
+  "جارٍ تجهيز ملف PDF للتنزيل...": "Preparing the PDF for download...",
+  "تم تحميل {count} صفحة.": "{count} pages loaded.",
+  "الملف لا يحتوي على صفحات.": "The file has no pages.",
+  "ملفاتك لا تغادر جهازك؛ تُحمّل مكتبة المعالجة من خادم التطبيق.": "Your files stay on your device; the processing library is served by the application.",
+  "ملفاتك لا تغادر جهازك؛ تُحمّل مكتبات المعالجة من خادم التطبيق.": "Your files stay on your device; processing libraries are served by the application.",
   "تظهر أرقام الصفحات المتاحة بعد اختيار الملف ومعالجته.": "Available page numbers are shown after selecting and processing the file.",
   "نطاقات الصفحات": "Page Ranges",
   "مثال: 1-3, 5, 8-10": "Example: 1-3, 5, 8-10",
@@ -1026,7 +1059,12 @@ function localizeDocument() {
 }
 
 let pdfLibPromise = null;
+let pdfJsPromise = null;
 let pdfToolObjectUrls = [];
+let pdfEditorPreviewDocument = null;
+let pdfEditorRenderTask = null;
+let pdfEditorRenderSequence = 0;
+let pdfEditorRenderScale = 1;
 
 function setPdfToolText(element, translationKey, values = {}) {
   element.dataset.pdfTranslation = translationKey;
@@ -1081,12 +1119,29 @@ function showPdfToolStatus(element, message, isError = false, values = {}) {
 }
 
 function createPdfDownload(bytes, filename) {
-  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  createPdfToolDownload(bytes, filename, "application/pdf");
+}
+
+function createPdfToolDownload(bytes, filename, contentType) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: contentType }));
   pdfToolObjectUrls.push(url);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
   link.click();
+}
+
+function loadPdfJs() {
+  if (!pdfJsPromise) {
+    pdfJsPromise = import("/vendor/pdfjs/build/pdf.mjs").then(pdfjs => {
+      pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/build/pdf.worker.min.mjs";
+      return pdfjs;
+    }).catch(error => {
+      pdfJsPromise = null;
+      throw error;
+    });
+  }
+  return pdfJsPromise;
 }
 
 async function handlePdfMerge(event) {
@@ -1191,6 +1246,392 @@ async function handlePdfSplit(event) {
       translationKey: error.pdfTranslationKey || "تعذر تقسيم الملف. تأكد من أن الملف صالح وغير محمي بكلمة مرور.",
       values: error.pdfTranslationValues
     }, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function createStoredZip(entries) {
+  const encoder = new TextEncoder();
+  const localRecords = [];
+  const centralRecords = [];
+  let offset = 0;
+
+  entries.forEach(({ name, content }) => {
+    const nameBytes = encoder.encode(name);
+    const data = encoder.encode(content);
+    const checksum = crc32(data);
+    const local = new Uint8Array(30 + nameBytes.length + data.length);
+    const localView = new DataView(local.buffer);
+    localView.setUint32(0, 0x04034b50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0x0800, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint32(14, checksum, true);
+    localView.setUint32(18, data.length, true);
+    localView.setUint32(22, data.length, true);
+    localView.setUint16(26, nameBytes.length, true);
+    local.set(nameBytes, 30);
+    local.set(data, 30 + nameBytes.length);
+    localRecords.push(local);
+
+    const central = new Uint8Array(46 + nameBytes.length);
+    const centralView = new DataView(central.buffer);
+    centralView.setUint32(0, 0x02014b50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0x0800, true);
+    centralView.setUint16(10, 0, true);
+    centralView.setUint32(16, checksum, true);
+    centralView.setUint32(20, data.length, true);
+    centralView.setUint32(24, data.length, true);
+    centralView.setUint16(28, nameBytes.length, true);
+    centralView.setUint32(42, offset, true);
+    central.set(nameBytes, 46);
+    centralRecords.push(central);
+    offset += local.length;
+  });
+
+  const centralSize = centralRecords.reduce((size, record) => size + record.length, 0);
+  const end = new Uint8Array(22);
+  const endView = new DataView(end.buffer);
+  endView.setUint32(0, 0x06054b50, true);
+  endView.setUint16(8, entries.length, true);
+  endView.setUint16(10, entries.length, true);
+  endView.setUint32(12, centralSize, true);
+  endView.setUint32(16, offset, true);
+  return new Blob([...localRecords, ...centralRecords, end], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  });
+}
+
+function escapeXml(value) {
+  return String(value).replace(/[<>&"']/g, character => ({
+    "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;", "'": "&apos;"
+  })[character]);
+}
+
+function buildWordDocument(pageLines) {
+  const paragraphs = [];
+  pageLines.forEach((lines, pageIndex) => {
+    lines.forEach(line => {
+      const rtl = /[\u0600-\u06ff]/i.test(line);
+      const paragraphDirection = rtl ? "<w:pPr><w:bidi/></w:pPr>" : "";
+      const runDirection = rtl ? "<w:rPr><w:rtl/><w:lang w:val=\"ar-SA\"/></w:rPr>" : "";
+      paragraphs.push(`<w:p>${paragraphDirection}<w:r>${runDirection}<w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>`);
+    });
+    if (pageIndex < pageLines.length - 1) paragraphs.push("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>");
+  });
+
+  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs.join("")}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  return createStoredZip([
+    {
+      name: "[Content_Types].xml",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`
+    },
+    {
+      name: "_rels/.rels",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`
+    },
+    { name: "word/document.xml", content: documentXml }
+  ]);
+}
+
+async function extractPdfPages(file) {
+  const pdfjs = await loadPdfJs();
+  const loadingTask = pdfjs.getDocument({
+    data: new Uint8Array(await file.arrayBuffer()),
+    cMapUrl: "/vendor/pdfjs/cmaps/",
+    cMapPacked: true,
+    standardFontDataUrl: "/vendor/pdfjs/standard_fonts/"
+  });
+  const document = await loadingTask.promise;
+  const pages = [];
+  try {
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const lines = [];
+      let line = "";
+      content.items.forEach(item => {
+        if (typeof item.str !== "string") return;
+        line += item.str;
+        if (item.hasEOL) {
+          if (line.trim()) lines.push(line.trim());
+          line = "";
+        }
+      });
+      if (line.trim()) lines.push(line.trim());
+      pages.push(lines);
+    }
+    return pages;
+  } finally {
+    await document.destroy();
+  }
+}
+
+function pdfOutputName(filename, suffix) {
+  const base = filename.replace(/\.pdf$/i, "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_") || "document";
+  return `${base}-${suffix}`;
+}
+
+async function handlePdfToWord(event) {
+  event.preventDefault();
+  const file = $("#pdf-word-file").files[0];
+  const status = $("#pdf-word-status");
+  const button = $("#pdf-word-button");
+  button.disabled = true;
+  showPdfToolStatus(status, "جارٍ استخراج النصوص من ملف PDF...");
+  try {
+    const pages = await extractPdfPages(file);
+    if (!pages.some(lines => lines.length)) {
+      throw createPdfToolError("لا يوجد نص قابل للاستخراج في هذا الملف. قد يكون ممسوحاً ضوئياً أو محمياً.");
+    }
+    showPdfToolStatus(status, "جارٍ تجهيز ملف Word...");
+    const wordFile = buildWordDocument(pages);
+    createPdfToolDownload(wordFile, pdfOutputName(file.name, "converted.docx"),
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    showPdfToolStatus(status, "تم تحويل PDF وتنزيل مستند Word.");
+  } catch (error) {
+    console.error("PDF to Word conversion failed:", error);
+    showPdfToolStatus(status, error.pdfTranslationKey
+      ? { translationKey: error.pdfTranslationKey, values: error.pdfTranslationValues }
+      : "تعذر تحويل ملف PDF إلى Word. تأكد من سلامة الملف وحاول مجدداً.", true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function updatePdfEditorTextOverlay() {
+  const overlay = $("#pdf-edit-text-overlay");
+  const canvas = $("#pdf-edit-preview-canvas");
+  const text = $("#pdf-edit-text").value;
+  if (!text || canvas.classList.contains("hidden")) {
+    overlay.classList.add("hidden");
+    return;
+  }
+  const rtl = /[\u0600-\u06ff]/i.test(text);
+  const displayScale = canvas.clientWidth / canvas.width;
+  overlay.textContent = text;
+  overlay.dir = rtl ? "rtl" : "ltr";
+  overlay.style.left = `${$("#pdf-edit-x").value}%`;
+  overlay.style.top = `${$("#pdf-edit-y").value}%`;
+  overlay.style.fontSize = `${Number($("#pdf-edit-font-size").value) * (96 / 72) * pdfEditorRenderScale * displayScale}px`;
+  overlay.style.color = $("#pdf-edit-color").value;
+  overlay.style.textAlign = rtl ? "right" : "left";
+  overlay.classList.remove("hidden");
+}
+
+async function renderPdfEditorPreview() {
+  if (!pdfEditorPreviewDocument) return;
+  const pageNumber = Number($("#pdf-edit-page").value);
+  if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdfEditorPreviewDocument.numPages) {
+    throw createPdfToolError("اختر رقم صفحة صحيحاً ضمن عدد صفحات الملف.");
+  }
+
+  const sequence = ++pdfEditorRenderSequence;
+  if (pdfEditorRenderTask) pdfEditorRenderTask.cancel();
+  const page = await pdfEditorPreviewDocument.getPage(pageNumber);
+  const canvas = $("#pdf-edit-preview-canvas");
+  const context = canvas.getContext("2d", { alpha: false });
+  const baseViewport = page.getViewport({ scale: 1 });
+  pdfEditorRenderScale = Math.min(1.5, Math.max(0.25, canvas.parentElement.clientWidth / baseViewport.width));
+  const viewport = page.getViewport({ scale: pdfEditorRenderScale });
+  canvas.width = Math.ceil(viewport.width);
+  canvas.height = Math.ceil(viewport.height);
+  const renderTask = page.render({ canvasContext: context, viewport });
+  pdfEditorRenderTask = renderTask;
+  try {
+    await renderTask.promise;
+  } catch (error) {
+    if (error.name === "RenderingCancelledException") return;
+    throw error;
+  }
+  if (sequence !== pdfEditorRenderSequence) return;
+  canvas.classList.remove("hidden");
+  $("#pdf-edit-preview-empty").classList.add("hidden");
+  updatePdfEditorTextOverlay();
+}
+
+async function handlePdfEditorFileChange() {
+  const file = $("#pdf-edit-file").files[0];
+  const status = $("#pdf-edit-status");
+  const button = $("#pdf-edit-button");
+  const canvas = $("#pdf-edit-preview-canvas");
+  button.disabled = true;
+  canvas.classList.add("hidden");
+  $("#pdf-edit-preview-empty").classList.remove("hidden");
+  if (!file) return;
+
+  showPdfToolStatus(status, "جارٍ تحميل مكتبة PDF ومعاينة الصفحة...");
+  try {
+    if (pdfEditorRenderTask) pdfEditorRenderTask.cancel();
+    if (pdfEditorPreviewDocument) await pdfEditorPreviewDocument.destroy();
+    pdfEditorPreviewDocument = null;
+    const pdfjs = await loadPdfJs();
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(await file.arrayBuffer()),
+      cMapUrl: "/vendor/pdfjs/cmaps/",
+      cMapPacked: true,
+      standardFontDataUrl: "/vendor/pdfjs/standard_fonts/"
+    });
+    pdfEditorPreviewDocument = await loadingTask.promise;
+    const pageInput = $("#pdf-edit-page");
+    pageInput.max = String(pdfEditorPreviewDocument.numPages);
+    pageInput.value = "1";
+    await renderPdfEditorPreview();
+    showPdfToolStatus(status, "تم تحميل {count} صفحة.", false, { count: pdfEditorPreviewDocument.numPages });
+    button.disabled = false;
+  } catch (error) {
+    console.error("PDF preview failed:", error);
+    showPdfToolStatus(status, error.pdfTranslationKey
+      ? { translationKey: error.pdfTranslationKey, values: error.pdfTranslationValues }
+      : "تعذر تحميل ملف PDF للمعاينة. تحقق من سلامة الملف.", true);
+  }
+}
+
+async function handlePdfEditorPageChange() {
+  try {
+    await renderPdfEditorPreview();
+  } catch (error) {
+    showPdfToolStatus($("#pdf-edit-status"), error.pdfTranslationKey
+      ? { translationKey: error.pdfTranslationKey, values: error.pdfTranslationValues }
+      : "اختر رقم صفحة صحيحاً ضمن عدد صفحات الملف.", true);
+  }
+}
+
+function setPdfEditorPosition(event) {
+  const canvas = $("#pdf-edit-preview-canvas");
+  const bounds = canvas.getBoundingClientRect();
+  $("#pdf-edit-x").value = String(Math.round(Math.min(100, Math.max(0, (event.clientX - bounds.left) / bounds.width * 100))));
+  $("#pdf-edit-y").value = String(Math.round(Math.min(100, Math.max(0, (event.clientY - bounds.top) / bounds.height * 100))));
+  updatePdfEditorTextOverlay();
+}
+
+function renderPdfTextImage(text, fontSize, maxWidthPoints, maxHeightPoints, color) {
+  const scale = 3;
+  const pixelsPerPoint = (96 / 72) * scale;
+  const fontSizePixels = fontSize * pixelsPerPoint;
+  const padding = 4 * scale;
+  const measureCanvas = document.createElement("canvas");
+  const measureContext = measureCanvas.getContext("2d");
+  const rtl = /[\u0600-\u06ff]/i.test(text);
+  measureContext.font = `${fontSizePixels}px "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif`;
+  measureContext.direction = rtl ? "rtl" : "ltr";
+  const maxCanvasWidth = Math.floor(maxWidthPoints * pixelsPerPoint);
+  const availableTextWidth = maxCanvasWidth - padding * 2;
+  const maxCanvasHeight = Math.floor(maxHeightPoints * pixelsPerPoint);
+  if (availableTextWidth <= 0 || maxCanvasHeight <= padding * 2) {
+    throw createPdfToolError("النص يتجاوز حدود الصفحة، غيّر موضعه أو حجم الخط.");
+  }
+  const lines = [];
+  text.split(/\r?\n/).forEach(sourceLine => {
+    const words = sourceLine.split(/\s+/).filter(Boolean);
+    let line = "";
+    words.forEach(word => {
+      const candidate = line ? `${line} ${word}` : word;
+      if (line && measureContext.measureText(candidate).width > availableTextWidth) {
+        lines.push(line);
+        line = "";
+      }
+      if (measureContext.measureText(word).width > availableTextWidth) {
+        let chunk = "";
+        for (const character of word) {
+          if (chunk && measureContext.measureText(chunk + character).width > availableTextWidth) {
+            lines.push(chunk);
+            chunk = character;
+          } else {
+            chunk += character;
+          }
+        }
+        line = chunk;
+      } else {
+        line = line ? `${line} ${word}` : word;
+      }
+    });
+    lines.push(line);
+  });
+
+  const lineHeight = fontSizePixels * 1.35;
+  const outputHeight = Math.ceil(lines.length * lineHeight + padding * 2);
+  if (outputHeight > maxCanvasHeight || outputHeight > 10000) {
+    throw createPdfToolError("النص يتجاوز حدود الصفحة، غيّر موضعه أو حجم الخط.");
+  }
+  const contentWidth = Math.max(1, ...lines.map(line => measureContext.measureText(line).width));
+  const canvas = document.createElement("canvas");
+  const outputWidth = Math.min(maxCanvasWidth, Math.ceil(contentWidth + padding * 2));
+  if (!outputWidth || outputWidth > 10000) {
+    throw createPdfToolError("تعذر إضافة النص إلى ملف PDF. تحقق من الملف والموضع وحاول مجدداً.");
+  }
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.font = measureContext.font;
+  context.direction = rtl ? "rtl" : "ltr";
+  context.textAlign = rtl ? "right" : "left";
+  context.textBaseline = "top";
+  context.fillStyle = color;
+  lines.forEach((line, index) => {
+    context.fillText(line, rtl ? canvas.width - padding : padding, padding + index * lineHeight);
+  });
+  const imageData = atob(canvas.toDataURL("image/png").split(",")[1]);
+  const pngBytes = Uint8Array.from(imageData, character => character.charCodeAt(0));
+  return {
+    bytes: pngBytes,
+    width: canvas.width / pixelsPerPoint,
+    height: canvas.height / pixelsPerPoint
+  };
+}
+
+async function handlePdfEditorSubmit(event) {
+  event.preventDefault();
+  const file = $("#pdf-edit-file").files[0];
+  const status = $("#pdf-edit-status");
+  const button = $("#pdf-edit-button");
+  button.disabled = true;
+  showPdfToolStatus(status, "جارٍ تجهيز ملف PDF للتنزيل...");
+  try {
+    const { PDFDocument } = await loadPdfLibrary();
+    const pdf = await PDFDocument.load(await file.arrayBuffer());
+    const pageNumber = Number($("#pdf-edit-page").value);
+    const xPercent = Number($("#pdf-edit-x").value);
+    const yPercent = Number($("#pdf-edit-y").value);
+    const fontSize = Number($("#pdf-edit-font-size").value);
+    const text = $("#pdf-edit-text").value.trim();
+    if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.getPageCount()) {
+      throw createPdfToolError("اختر رقم صفحة صحيحاً ضمن عدد صفحات الملف.");
+    }
+    if (![xPercent, yPercent, fontSize].every(Number.isFinite)
+      || xPercent < 0 || xPercent > 100 || yPercent < 0 || yPercent > 100 || fontSize < 6 || fontSize > 72) {
+      throw createPdfToolError("تعذر إضافة النص إلى ملف PDF. تحقق من الملف والموضع وحاول مجدداً.");
+    }
+    if (!text) throw createPdfToolError("تعذر إضافة النص إلى ملف PDF. تحقق من الملف والموضع وحاول مجدداً.");
+
+    const page = pdf.getPage(pageNumber - 1);
+    const { width: pageWidth, height: pageHeight } = page.getSize();
+    const x = pageWidth * xPercent / 100;
+    const top = pageHeight * yPercent / 100;
+    const textImage = renderPdfTextImage(text, fontSize, pageWidth - x, pageHeight - top, $("#pdf-edit-color").value);
+    const image = await pdf.embedPng(textImage.bytes);
+    page.drawImage(image, { x, y: pageHeight - top - textImage.height, width: textImage.width, height: textImage.height });
+    createPdfDownload(await pdf.save(), pdfOutputName(file.name, "edited.pdf"));
+    showPdfToolStatus(status, "تمت إضافة النص وتنزيل ملف PDF.");
+  } catch (error) {
+    console.error("PDF text overlay failed:", error);
+    showPdfToolStatus(status, error.pdfTranslationKey
+      ? { translationKey: error.pdfTranslationKey, values: error.pdfTranslationValues }
+      : "تعذر إضافة النص إلى ملف PDF. تحقق من الملف والموضع وحاول مجدداً.", true);
   } finally {
     button.disabled = false;
   }
@@ -4697,6 +5138,14 @@ function init() {
   });
   $("#pdf-merge-form").addEventListener("submit", handlePdfMerge);
   $("#pdf-split-form").addEventListener("submit", handlePdfSplit);
+  $("#pdf-word-form").addEventListener("submit", handlePdfToWord);
+  $("#pdf-edit-form").addEventListener("submit", handlePdfEditorSubmit);
+  $("#pdf-edit-file").addEventListener("change", handlePdfEditorFileChange);
+  $("#pdf-edit-page").addEventListener("change", handlePdfEditorPageChange);
+  $("#pdf-edit-preview-canvas").addEventListener("click", setPdfEditorPosition);
+  ["pdf-edit-text", "pdf-edit-x", "pdf-edit-y", "pdf-edit-font-size", "pdf-edit-color"].forEach(id => {
+    $(`#${id}`).addEventListener("input", updatePdfEditorTextOverlay);
+  });
   $("#fasah-pdf-extract-form").addEventListener("submit", handleFasahPdfPreview);
   $("#fasah-appointment-review-form").addEventListener("submit", handleFasahAppointmentSave);
   $("#fasah-appointment-cancel").addEventListener("click", cancelFasahAppointmentPreview);

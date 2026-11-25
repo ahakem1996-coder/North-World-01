@@ -631,8 +631,38 @@
                 <div id="pdf-split-results" class="pdf-split-results" aria-live="polite"></div>
               </form>
             </section>
+            <section class="panel pdf-tool-panel">
+              <div class="panel-heading"><div><h2>تحويل PDF إلى Word</h2><p>استخراج النصوص وإعداد مستند Word قابل للتحرير.</p></div><span class="pdf-tool-icon">W</span></div>
+              <form id="pdf-word-form" class="pdf-tool-form">
+                <label class="field">ملف PDF<input id="pdf-word-file" class="file-input" type="file" accept=".pdf,application/pdf" required><small class="file-hint">يدعم ملفات PDF النصية. لا يحافظ على التنسيق المعقد أو الصور والجداول، ولا يتضمن OCR للمستندات الممسوحة.</small></label>
+                <button id="pdf-word-button" class="button button-primary" type="submit">تحويل إلى Word</button>
+                <p id="pdf-word-status" class="pdf-tool-status" role="status" aria-live="polite"></p>
+              </form>
+            </section>
+            <section class="panel pdf-tool-panel">
+              <div class="panel-heading"><div><h2>الكتابة على PDF</h2><p>أضف نصاً إلى صفحة محددة وعاين موضعه قبل التنزيل.</p></div><span class="pdf-tool-icon">✎</span></div>
+              <form id="pdf-edit-form" class="pdf-tool-form pdf-edit-form">
+                <label class="field">ملف PDF<input id="pdf-edit-file" class="file-input" type="file" accept=".pdf,application/pdf" required></label>
+                <div class="pdf-edit-preview-wrap">
+                  <canvas id="pdf-edit-preview-canvas" class="hidden" aria-label="معاينة صفحة PDF"></canvas>
+                  <div id="pdf-edit-preview-empty" class="pdf-preview-empty">اختر ملف PDF لمعاينة الصفحة.</div>
+                  <div id="pdf-edit-text-overlay" class="pdf-edit-text-overlay hidden" aria-hidden="true"></div>
+                </div>
+                <div class="pdf-edit-controls">
+                  <label class="field">رقم الصفحة<input id="pdf-edit-page" type="number" min="1" value="1" required></label>
+                  <label class="field">من اليسار (%)<input id="pdf-edit-x" type="number" min="0" max="100" value="8" required></label>
+                  <label class="field">من الأعلى (%)<input id="pdf-edit-y" type="number" min="0" max="100" value="8" required></label>
+                  <label class="field">حجم الخط (pt)<input id="pdf-edit-font-size" type="number" min="6" max="72" value="16" required></label>
+                  <label class="field">لون الكتابة<input id="pdf-edit-color" type="color" value="#111111"></label>
+                </div>
+                <label class="field">النص<textarea id="pdf-edit-text" rows="3" maxlength="2000" required placeholder="اكتب النص المراد إضافته"></textarea></label>
+                <small class="file-hint">انقر على المعاينة لتحديد الموضع. سيُضاف النص كطبقة مرئية؛ وقد يكون النص المضاف صورة غير قابلة للتحديد أو التحرير.</small>
+                <button id="pdf-edit-button" class="button button-primary" type="submit">إضافة الكتابة وتنزيل PDF</button>
+                <p id="pdf-edit-status" class="pdf-tool-status" role="status" aria-live="polite"></p>
+              </form>
+            </section>
           </div>
-          <p class="pdf-privacy-note">ملفاتك لا تغادر جهازك؛ تُحمّل مكتبة المعالجة من خادم التطبيق.</p>
+          <p class="pdf-privacy-note">ملفاتك لا تغادر جهازك؛ تُحمّل مكتبات المعالجة من خادم التطبيق.</p>
         </section>
 
         <section class="view" id="view-reports">

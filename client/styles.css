@@ -105,6 +105,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .pdf-split-results { display: grid; gap: 7px; }
 .pdf-split-results a { width: fit-content; color: #2874b5; font-size: 10px; text-decoration: underline; text-underline-offset: 2px; }
 .pdf-privacy-note { margin: 14px 2px 0; color: #8998a7; font-size: 10px; line-height: 1.7; }
+.pdf-edit-preview-wrap { position: relative; width: min(100%, 560px); min-height: 180px; margin: 0 auto; overflow: hidden; border: 1px solid #e3e9ef; border-radius: 8px; background: #f5f7fb; }
+.pdf-edit-preview-wrap canvas { display: block; width: 100%; height: auto; }
+.pdf-preview-empty { min-height: 180px; display: grid; place-items: center; padding: 18px; color: #8998a7; font-size: 10px; text-align: center; }
+.pdf-edit-text-overlay { position: absolute; z-index: 1; max-width: 90%; padding: 2px 4px; border: 1px dashed #2874c6; background: #ffffffb8; white-space: pre-wrap; line-height: 1.25; pointer-events: none; }
+.pdf-edit-controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; margin-bottom: 19px; }
 .stat-card { min-height: 143px; padding: 17px 18px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 4px 14px #253c5405; }
@@ -430,6 +435,7 @@ tbody tr:hover { background: #fbfcfe; }
   .workspace { margin-right: 68px; }
   .dashboard-grid { grid-template-columns: 1fr; }
   .pdf-tools-grid { grid-template-columns: 1fr; }
+  .pdf-edit-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .issue-layout { grid-template-columns: 1fr; }
   .issue-aside { order: 2; }
   .tracking-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
