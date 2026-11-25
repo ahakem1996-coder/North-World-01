@@ -35,6 +35,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .brand small { display: block; margin-top: 4px; color: #8fa4b8; font-size: 11px; }
 .sidebar-label { padding: 9px 10px 11px; color: #758da4; font-size: 11px; }
 .navigation { display: grid; gap: 5px; }
+.nav-standalone { display: grid; gap: 5px; margin-top: 3px; padding-top: 8px; border-top: 1px solid #ffffff14; }
 .nav-group { display: grid; gap: 4px; }
 .nav-group-toggle { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 11px; padding: 0 11px; border: 0; border-radius: 9px; color: #c2cfe0; background: #ffffff08; text-align: right; font-size: 13px; font-weight: 700; cursor: pointer; }
 .nav-group-toggle:hover { color: #fff; background: #ffffff10; }

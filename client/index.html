@@ -51,7 +51,6 @@
       </a>
       <div class="sidebar-label">القائمة الرئيسية</div>
       <nav class="navigation" aria-label="القائمة الرئيسية">
-        <button class="nav-link active" data-view="dashboard"><span class="nav-icon">⌂</span>لوحة التحكم</button>
         <div class="nav-group" id="transport-nav-group">
           <button class="nav-group-toggle" type="button" data-nav-group-toggle aria-expanded="false">
             <span class="nav-icon">⇄</span><span class="nav-group-label">النقليات</span><span class="nav-group-chevron">⌄</span>
@@ -83,9 +82,12 @@
             <button class="nav-link" data-view="reports"><span class="nav-icon">▥</span>سجل العمليات</button>
           </div>
         </div>
-        <button class="nav-link" data-view="fleet"><span class="nav-icon">▰</span>الأسطول والسائقون</button>
-        <button class="nav-link" data-view="pdf-tools" title="أدوات PDF"><span class="nav-icon">▤</span>أدوات PDF</button>
-        <button id="admin-accounts-link" class="nav-link hidden" data-view="accounts"><span class="nav-icon">♙</span>حسابات المستخدمين</button>
+        <div class="nav-standalone">
+          <button class="nav-link active" data-view="dashboard"><span class="nav-icon">⌂</span>لوحة التحكم</button>
+          <button class="nav-link" data-view="fleet"><span class="nav-icon">▰</span>الأسطول والسائقون</button>
+          <button class="nav-link" data-view="pdf-tools" title="أدوات PDF"><span class="nav-icon">▤</span>أدوات PDF</button>
+          <button id="admin-accounts-link" class="nav-link hidden" data-view="accounts"><span class="nav-icon">♙</span>حسابات المستخدمين</button>
+        </div>
       </nav>
       <div class="sidebar-spacer"></div>
       <div class="sidebar-note">
