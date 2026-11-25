@@ -12,6 +12,7 @@ import appRoutes from "./routes/app.js";
 
 const app = express();
 const clientDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../client");
+const pdfLibBundlePath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../node_modules/pdf-lib/dist/pdf-lib.min.js");
 
 if (env.NODE_ENV === "production") app.set("trust proxy", 1);
 app.disable("x-powered-by");
@@ -42,6 +43,11 @@ app.get("/api/health/ready", async (req, res) => {
 });
 app.use("/api/auth", authRoutes);
 app.use("/api", (req, res, next) => req.user ? next() : requireAuth(req, res, next), appRoutes);
+app.get("/vendor/pdf-lib.min.js", (req, res, next) => {
+  res.sendFile(pdfLibBundlePath, error => {
+    if (error) next(error);
+  });
+});
 app.get("/api/integrations", requireAuth, (req, res) => {
   res.json({
     fasah: { status: "DISCONNECTED", message: "Official adapter is not configured." },

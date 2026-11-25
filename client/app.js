@@ -63,6 +63,39 @@ const TRANSLATIONS = Object.freeze({
   "تحديد كل النتائج الظاهرة": "Select all visible results",
   "عملية محددة": "selected operations",
   "ملفات PDF للدمج": "PDFs to merge",
+  "أدوات PDF": "PDF Tools",
+  "أدوات المستندات": "Document Tools",
+  "دمج وتقسيم ملفات PDF": "Merge and Split PDF Files",
+  "ادمج ملفاتك أو استخرج صفحات محددة، مباشرة على جهازك.": "Merge your files or extract selected pages, right on your device.",
+  "دمج ملفات PDF": "Merge PDF Files",
+  "رتّب الملفات قبل اختيارها ليكون ترتيب الصفحات كما تريد.": "Arrange the files before selecting them to control page order.",
+  "ملفات PDF": "PDF Files",
+  "اختر ملفين أو أكثر. ستتم معالجة الملفات محلياً ولن تُرفع إلى الخادم.": "Choose two or more files. They are processed locally and are not uploaded to the server.",
+  "دمج الملفات وتنزيلها": "Merge and Download",
+  "جارٍ تحميل المكتبة ومعالجة الملف...": "Loading the library and processing the file...",
+  "تقسيم ملف PDF": "Split a PDF File",
+  "حدّد نطاقاً أو أكثر، وسيُنشأ ملف مستقل لكل نطاق.": "Select one or more ranges to create a separate file for each range.",
+  "ملف PDF": "PDF File",
+  "تظهر أرقام الصفحات المتاحة بعد اختيار الملف ومعالجته.": "Available page numbers are shown after selecting and processing the file.",
+  "نطاقات الصفحات": "Page Ranges",
+  "مثال: 1-3, 5, 8-10": "Example: 1-3, 5, 8-10",
+  "اكتب أرقام الصفحات أو النطاقات مفصولة بفواصل.": "Enter page numbers or ranges separated by commas.",
+  "تقسيم الملف": "Split File",
+  "ملفاتك لا تغادر جهازك؛ تُحمّل مكتبة المعالجة من خادم التطبيق.": "Your files stay on your device; the processing library is served by the application.",
+  "تعذر تحميل مكتبة PDF من الخادم. أعد تحميل الصفحة أو تواصل مع المسؤول.": "Could not load the PDF library from the server. Reload the page or contact your administrator.",
+  "اختر ملفين PDF على الأقل للدمج.": "Choose at least two PDF files to merge.",
+  "تم دمج الملفات وتنزيل ملف PDF الموحد.": "The files were merged and the combined PDF was downloaded.",
+  "تعذر دمج الملفات. تأكد من أن كل الملفات صالحة وغير محمية بكلمة مرور.": "Could not merge the files. Make sure each file is valid and not password-protected.",
+  "تعذر تقسيم الملف. تأكد من أن الملف صالح وغير محمي بكلمة مرور.": "Could not split the file. Make sure it is valid and not password-protected.",
+  "أدخل نطاقات صفحات صحيحة مثل 1-3, 5.": "Enter valid page ranges, such as 1-3, 5.",
+  "النطاق من {start} إلى {end} خارج عدد صفحات الملف ({count}).": "The range from {start} to {end} exceeds the number of pages in the file ({count}).",
+  "النطاق من {start} إلى {end} غير صالح.": "The range from {start} to {end} is invalid.",
+  "تتداخل نطاقات الصفحات المحددة.": "The selected page ranges overlap.",
+  "الملف يحتوي على {count} صفحة.": "The file has {count} pages.",
+  "الملف يحتوي على {pageCount} صفحة، وتم تجهيز {fileCount} ملفات للتنزيل.": "The file has {pageCount} pages; {fileCount} files are ready to download.",
+  "صفحات {pages}": "Pages {pages}",
+  "تنزيل PDF للنطاق {pages}": "Download PDF for pages {pages}",
+  "تم تجهيز {count} ملفات للتنزيل.": "Prepared {count} files for download.",
   "PDF الفسح فقط": "Clearance PDFs only",
   "PDF وثائق النقل فقط": "Transport document PDFs only",
   "PDF الفسح ووثائق النقل": "Clearance and transport PDFs",
@@ -981,12 +1014,186 @@ function localizeDocument() {
       }
     });
   });
+  $$("[data-pdf-translation]").forEach(element => {
+    setPdfToolText(element, element.dataset.pdfTranslation, JSON.parse(element.dataset.pdfTranslationValues || "{}"));
+  });
   $$("[data-language-toggle]").forEach(button => {
     const label = language === "ar" ? "English" : "العربية";
     const ariaLabel = language === "ar" ? "Switch to English" : "التبديل إلى العربية";
     if (button.textContent !== label) button.textContent = label;
     if (button.getAttribute("aria-label") !== ariaLabel) button.setAttribute("aria-label", ariaLabel);
   });
+}
+
+let pdfLibPromise = null;
+let pdfToolObjectUrls = [];
+
+function setPdfToolText(element, translationKey, values = {}) {
+  element.dataset.pdfTranslation = translationKey;
+  element.dataset.pdfTranslationValues = JSON.stringify(values);
+  let message = translateText(translationKey);
+  for (const [key, value] of Object.entries(values)) {
+    message = message.replaceAll(`{${key}}`, String(value));
+  }
+  element.textContent = message;
+}
+
+function createPdfToolError(translationKey, values = {}) {
+  const error = new Error(translationKey);
+  error.pdfTranslationKey = translationKey;
+  error.pdfTranslationValues = values;
+  return error;
+}
+
+function loadPdfLibrary() {
+  if (window.PDFLib?.PDFDocument) return Promise.resolve(window.PDFLib);
+  if (pdfLibPromise) return pdfLibPromise;
+
+  pdfLibPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "/vendor/pdf-lib.min.js";
+    script.async = true;
+    script.onload = () => {
+      if (window.PDFLib?.PDFDocument) resolve(window.PDFLib);
+      else reject(createPdfToolError("تعذر تحميل مكتبة PDF من الخادم. أعد تحميل الصفحة أو تواصل مع المسؤول."));
+    };
+    script.onerror = () => reject(createPdfToolError("تعذر تحميل مكتبة PDF من الخادم. أعد تحميل الصفحة أو تواصل مع المسؤول."));
+    document.head.appendChild(script);
+  }).catch(error => {
+    pdfLibPromise = null;
+    throw error;
+  });
+  return pdfLibPromise;
+}
+
+function clearPdfToolOutputs() {
+  pdfToolObjectUrls.forEach(url => URL.revokeObjectURL(url));
+  pdfToolObjectUrls = [];
+  $("#pdf-split-results").replaceChildren();
+}
+
+function showPdfToolStatus(element, message, isError = false, values = {}) {
+  const translation = typeof message === "string"
+    ? { translationKey: message, values }
+    : message;
+  setPdfToolText(element, translation.translationKey, translation.values || {});
+  element.classList.toggle("error", isError);
+}
+
+function createPdfDownload(bytes, filename) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  pdfToolObjectUrls.push(url);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+}
+
+async function handlePdfMerge(event) {
+  event.preventDefault();
+  const files = Array.from($("#pdf-merge-files").files || []);
+  const status = $("#pdf-merge-status");
+  const button = $("#pdf-merge-button");
+  clearPdfToolOutputs();
+  if (files.length < 2) {
+    showPdfToolStatus(status, "اختر ملفين PDF على الأقل للدمج.", true);
+    return;
+  }
+
+  button.disabled = true;
+  showPdfToolStatus(status, "جارٍ تحميل المكتبة ومعالجة الملف...");
+  try {
+    const { PDFDocument } = await loadPdfLibrary();
+    const merged = await PDFDocument.create();
+    for (const file of files) {
+      const source = await PDFDocument.load(await file.arrayBuffer());
+      const pages = await merged.copyPages(source, source.getPageIndices());
+      pages.forEach(page => merged.addPage(page));
+    }
+    createPdfDownload(await merged.save(), "merged.pdf");
+    showPdfToolStatus(status, "تم دمج الملفات وتنزيل ملف PDF الموحد.");
+  } catch (error) {
+    console.error("PDF merge failed:", error);
+    showPdfToolStatus(status, {
+      translationKey: error.pdfTranslationKey || "تعذر دمج الملفات. تأكد من أن كل الملفات صالحة وغير محمية بكلمة مرور.",
+      values: error.pdfTranslationValues
+    }, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function parsePdfPageRanges(value, pageCount) {
+  const parts = value.split(",").map(part => part.trim());
+  if (!parts.length || parts.some(part => !/^\d+(?:\s*-\s*\d+)?$/.test(part))) {
+    throw createPdfToolError("أدخل نطاقات صفحات صحيحة مثل 1-3, 5.");
+  }
+
+  const ranges = parts.map(part => {
+    const [startText, endText = startText] = part.split("-").map(value => value.trim());
+    const start = Number(startText);
+    const end = Number(endText);
+    if (start < 1 || end < start) {
+      throw createPdfToolError("النطاق من {start} إلى {end} غير صالح.", { start: startText, end: endText });
+    }
+    if (end > pageCount) {
+      throw createPdfToolError("النطاق من {start} إلى {end} خارج عدد صفحات الملف ({count}).", {
+        start: startText, end: endText, count: pageCount
+      });
+    }
+    return { start, end };
+  });
+
+  const pages = new Set();
+  for (const range of ranges) {
+    for (let page = range.start; page <= range.end; page += 1) {
+      if (pages.has(page)) throw createPdfToolError("تتداخل نطاقات الصفحات المحددة.");
+      pages.add(page);
+    }
+  }
+  return ranges;
+}
+
+async function handlePdfSplit(event) {
+  event.preventDefault();
+  const file = $("#pdf-split-file").files[0];
+  const status = $("#pdf-split-status");
+  const button = $("#pdf-split-button");
+  const results = $("#pdf-split-results");
+  clearPdfToolOutputs();
+  button.disabled = true;
+  showPdfToolStatus(status, "جارٍ تحميل المكتبة ومعالجة الملف...");
+  try {
+    const { PDFDocument } = await loadPdfLibrary();
+    const source = await PDFDocument.load(await file.arrayBuffer());
+    const ranges = parsePdfPageRanges($("#pdf-split-ranges").value, source.getPageCount());
+    for (const range of ranges) {
+      const output = await PDFDocument.create();
+      const indices = Array.from({ length: range.end - range.start + 1 }, (_, index) => range.start - 1 + index);
+      const pages = await output.copyPages(source, indices);
+      pages.forEach(page => output.addPage(page));
+      const bytes = await output.save();
+      const pagesLabel = range.start === range.end ? String(range.start) : `${range.start}-${range.end}`;
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      pdfToolObjectUrls.push(url);
+      link.href = url;
+      link.download = `${file.name.replace(/\.pdf$/i, "")}-pages-${pagesLabel}.pdf`;
+      setPdfToolText(link, "تنزيل PDF للنطاق {pages}", { pages: pagesLabel });
+      results.append(link);
+    }
+    showPdfToolStatus(status, "الملف يحتوي على {pageCount} صفحة، وتم تجهيز {fileCount} ملفات للتنزيل.", false, {
+      pageCount: source.getPageCount(), fileCount: ranges.length
+    });
+  } catch (error) {
+    console.error("PDF split failed:", error);
+    showPdfToolStatus(status, {
+      translationKey: error.pdfTranslationKey || "تعذر تقسيم الملف. تأكد من أن الملف صالح وغير محمي بكلمة مرور.",
+      values: error.pdfTranslationValues
+    }, true);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function updateTodayLabel() {
@@ -1479,6 +1686,7 @@ function switchView(name) {
     expenses: "تكاليف الرحلات",
     archive: "أرشيف الوثائق",
     reports: "سجل العمليات",
+    "pdf-tools": "دمج وتقسيم ملفات PDF",
     companies: "معلومات الشركات",
     accounts: "حسابات المستخدمين"
   };
@@ -4487,6 +4695,8 @@ function init() {
     renderFasahResults($("#fasah-query").value);
     renderFasahAppointments();
   });
+  $("#pdf-merge-form").addEventListener("submit", handlePdfMerge);
+  $("#pdf-split-form").addEventListener("submit", handlePdfSplit);
   $("#fasah-pdf-extract-form").addEventListener("submit", handleFasahPdfPreview);
   $("#fasah-appointment-review-form").addEventListener("submit", handleFasahAppointmentSave);
   $("#fasah-appointment-cancel").addEventListener("click", cancelFasahAppointmentPreview);

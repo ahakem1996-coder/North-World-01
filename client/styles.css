@@ -95,6 +95,17 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .button-light { color: #627588; border-color: #e3e9ef; background: #fff; }
 .button:disabled { cursor: not-allowed; opacity: .5; transform: none; }
 
+.pdf-tools-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.pdf-tool-panel { overflow: hidden; }
+.pdf-tool-icon { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 9px; color: #347fba; background: #eaf3fc; font-size: 17px; }
+.pdf-tool-form { display: grid; gap: 14px; padding: 0 19px 19px; }
+.pdf-tool-form .button { justify-self: start; }
+.pdf-tool-status { min-height: 16px; margin: 0; color: #718397; font-size: 10px; line-height: 1.7; }
+.pdf-tool-status.error { color: #b94b4b; }
+.pdf-split-results { display: grid; gap: 7px; }
+.pdf-split-results a { width: fit-content; color: #2874b5; font-size: 10px; text-decoration: underline; text-underline-offset: 2px; }
+.pdf-privacy-note { margin: 14px 2px 0; color: #8998a7; font-size: 10px; line-height: 1.7; }
+
 .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; margin-bottom: 19px; }
 .stat-card { min-height: 143px; padding: 17px 18px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 4px 14px #253c5405; }
 .stat-top { display: flex; align-items: center; gap: 9px; }
@@ -418,6 +429,7 @@ tbody tr:hover { background: #fbfcfe; }
   .user-card > div:not(.avatar), .user-menu { display: none; }
   .workspace { margin-right: 68px; }
   .dashboard-grid { grid-template-columns: 1fr; }
+  .pdf-tools-grid { grid-template-columns: 1fr; }
   .issue-layout { grid-template-columns: 1fr; }
   .issue-aside { order: 2; }
   .tracking-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }

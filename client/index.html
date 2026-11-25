@@ -84,6 +84,7 @@
             <button class="nav-link" data-view="reports"><span class="nav-icon">▥</span>سجل العمليات</button>
           </div>
         </div>
+        <button class="nav-link" data-view="pdf-tools" title="أدوات PDF"><span class="nav-icon">▤</span>أدوات PDF</button>
         <button id="admin-accounts-link" class="nav-link hidden" data-view="accounts"><span class="nav-icon">♙</span>حسابات المستخدمين</button>
       </nav>
       <div class="sidebar-spacer"></div>
@@ -607,6 +608,31 @@
             <div class="search-hint">تظهر الوثائق وطلبات الرحلات المحفوظة في قاعدة بيانات الشركة.</div>
           </section>
           <div id="archive-results" class="result-list"></div>
+        </section>
+
+        <section class="view" id="view-pdf-tools">
+          <div class="page-heading"><div><span class="eyebrow">أدوات المستندات</span><h1>دمج وتقسيم ملفات PDF</h1><p>ادمج ملفاتك أو استخرج صفحات محددة، مباشرة على جهازك.</p></div></div>
+          <div class="pdf-tools-grid">
+            <section class="panel pdf-tool-panel">
+              <div class="panel-heading"><div><h2>دمج ملفات PDF</h2><p>رتّب الملفات قبل اختيارها ليكون ترتيب الصفحات كما تريد.</p></div><span class="pdf-tool-icon">＋</span></div>
+              <form id="pdf-merge-form" class="pdf-tool-form">
+                <label class="field">ملفات PDF<input id="pdf-merge-files" class="file-input" type="file" accept=".pdf,application/pdf" multiple required><small class="file-hint">اختر ملفين أو أكثر. ستتم معالجة الملفات محلياً ولن تُرفع إلى الخادم.</small></label>
+                <button id="pdf-merge-button" class="button button-primary" type="submit">دمج الملفات وتنزيلها</button>
+                <p id="pdf-merge-status" class="pdf-tool-status" role="status" aria-live="polite"></p>
+              </form>
+            </section>
+            <section class="panel pdf-tool-panel">
+              <div class="panel-heading"><div><h2>تقسيم ملف PDF</h2><p>حدّد نطاقاً أو أكثر، وسيُنشأ ملف مستقل لكل نطاق.</p></div><span class="pdf-tool-icon">✂</span></div>
+              <form id="pdf-split-form" class="pdf-tool-form">
+                <label class="field">ملف PDF<input id="pdf-split-file" class="file-input" type="file" accept=".pdf,application/pdf" required><small class="file-hint">تظهر أرقام الصفحات المتاحة بعد اختيار الملف ومعالجته.</small></label>
+                <label class="field">نطاقات الصفحات<input id="pdf-split-ranges" type="text" dir="ltr" placeholder="مثال: 1-3, 5, 8-10" required inputmode="numeric" autocomplete="off"><small class="file-hint">اكتب أرقام الصفحات أو النطاقات مفصولة بفواصل.</small></label>
+                <button id="pdf-split-button" class="button button-primary" type="submit">تقسيم الملف</button>
+                <p id="pdf-split-status" class="pdf-tool-status" role="status" aria-live="polite"></p>
+                <div id="pdf-split-results" class="pdf-split-results" aria-live="polite"></div>
+              </form>
+            </section>
+          </div>
+          <p class="pdf-privacy-note">ملفاتك لا تغادر جهازك؛ تُحمّل مكتبة المعالجة من خادم التطبيق.</p>
         </section>
 
         <section class="view" id="view-reports">

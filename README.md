@@ -39,6 +39,8 @@ Drivers can record fuel or maintenance expenses against accepted trips and attac
 
 The administrator's trip-tracking screen shows accepted trips, driver-reported milestones, and their timestamps. It refreshes every 30 seconds while open; it does not provide live GPS tracking.
 
+Administrators can use the separate PDF tools screen to merge local PDF files or split a PDF into selected page ranges. Processing happens in the browser using the `pdf-lib` browser bundle served by the application; document contents are not sent to the server.
+
 The app is not yet deployed or connected to government APIs. The database starts empty; enter the company's real truck, driver, port, and account records before operations.
 
 ## VPS templates
